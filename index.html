@@ -42,6 +42,11 @@ const VALIDATION_TYPES = [
   { value: 2, label: "VKN" }, { value: 3, label: "IBAN" },
   { value: 4, label: "E-posta" }, { value: 5, label: "Telefon" },
 ];
+const TRAILING_TYPES = [
+  { value: 0, label: "Yok" }, { value: 1, label: "QR Tarama" }, { value: 2, label: "OCR Tarama" },
+  { value: 3, label: "Kişiler" }, { value: 4, label: "Takvim" }, { value: 5, label: "Bilgi" }, { value: 6, label: "Kopyala" },
+];
+const LINK_ACTION_TYPES = [{ value: 1, label: "URL Aç" }, { value: 2, label: "Popup Göster" }, { value: 3, label: "Resim Göster" }];
 
 const C = {
   bg: "#0f0f1a", surface: "#1a1a2e", surface2: "#222240", border: "#2a2a4a",
@@ -332,6 +337,13 @@ const runValidation = (value, field) => {
   if (cfg.MinLength && len < cfg.MinLength) errors.push(cfg.Errors?.MinLength?.replace("{0}", cfg.MinLength) || `En az ${cfg.MinLength} karakter`);
   if (cfg.MaxLength && len > cfg.MaxLength) errors.push(cfg.Errors?.MaxLength?.replace("{0}", cfg.MaxLength) || `En fazla ${cfg.MaxLength} karakter`);
 
+  // MinValue / MaxValue (AmountInput vb.)
+  const numericVal = parseFloat(value.trim().replace(/,/g, "."));
+  if (!isNaN(numericVal)) {
+    if (cfg.MinValue != null && numericVal < cfg.MinValue) errors.push(cfg.Errors?.MinValue?.replace("{0}", String(cfg.MinValue)) || `En az ${cfg.MinValue} olmalı`);
+    if (cfg.MaxValue != null && numericVal > cfg.MaxValue) errors.push(cfg.Errors?.MaxValue?.replace("{0}", String(cfg.MaxValue)) || `En fazla ${cfg.MaxValue} olmalı`);
+  }
+
   (cfg.ValidationRules || []).forEach(rule => {
     const t = rule.Type;
     if (t === 0 && rule.Pattern) { try { if (!new RegExp(rule.Pattern).test(value)) errors.push(rule.ErrorMessage || "Geçersiz format"); } catch {} }
@@ -354,8 +366,18 @@ function FieldPreview({ field }) {
   const [checked, setChecked] = useState(false);
   const [radioVal, setRadioVal] = useState(null);
 
-  // Reset when field changes
-  useEffect(() => { setValue(""); setValidated(false); setSelectedOpt(null); setChecked(false); setRadioVal(null); }, [field?.Id, field?.FieldType]);
+  // Reset when field changes — use DefaultValue if available
+  useEffect(() => {
+    const dv = field?.Config?.DefaultValue || "";
+    setValue(dv);
+    setValidated(false);
+    if (field?.FieldType === 2 && dv && field?.Config?.Options) {
+      const idx = field.Config.Options.findIndex(o => o.Value === dv);
+      setSelectedOpt(idx >= 0 ? field.Config.Options[idx] : null);
+    } else { setSelectedOpt(null); }
+    setChecked(dv === "true");
+    setRadioVal(dv || null);
+  }, [field?.Id, field?.FieldType, field?.Config?.DefaultValue]);
 
   if (!field) return null;
   const ft = field.FieldType;
@@ -527,16 +549,23 @@ function FieldPreview({ field }) {
 
   // AmountInput (6)
   if (ft === 6) {
+    const currency = cfg.CurrencyName || "₺";
     return (
       <div style={wrap}>
         <div style={labelStyle}>{label}{reqDot}</div>
         <div style={{ ...inputStyle, display: "flex", alignItems: "center", gap: 8, padding: 0, overflow: "hidden" }}>
-          <span style={{ color: "#6b7280", fontWeight: 600, fontSize: 14, padding: "10px 0 10px 12px", fontFamily: sans }}>₺</span>
+          <span style={{ color: "#6b7280", fontWeight: 600, fontSize: 14, padding: "10px 0 10px 12px", fontFamily: sans }}>{currency}</span>
           <input style={{ border: "none", outline: "none", flex: 1, fontSize: 14, color: "#111827", fontFamily: sans, padding: "10px 12px 10px 0", background: "transparent" }}
             placeholder={ph || "0,00"} value={value} disabled={disabled}
             onChange={(e) => { setValue(e.target.value); if (validated) setValidated(false); }} />
         </div>
         {counterEl}
+        {(cfg.MinValue != null || cfg.MaxValue != null) && (
+          <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+            {cfg.MinValue != null && <span style={{ fontSize: 10, color: "#9ca3af", fontFamily: sans }}>min: {cfg.MinValue} {currency}</span>}
+            {cfg.MaxValue != null && <span style={{ fontSize: 10, color: "#9ca3af", fontFamily: sans }}>max: {cfg.MaxValue} {currency}</span>}
+          </div>
+        )}
         {errorEl}
         {validEl}
         {actionBar}
@@ -561,11 +590,22 @@ function FieldPreview({ field }) {
 
   // InfoText (8)
   if (ft === 8) {
+    const link = cfg.Link;
     return (
       <div style={wrap}>
         <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.5, fontFamily: sans }}>
           {label}{ph ? `: ${ph}` : ""}
         </div>
+        {link?.Text && (
+          <div style={{ marginTop: 6 }}>
+            <span style={{ fontSize: 12, color: "#3b82f6", textDecoration: "underline", cursor: "pointer", fontFamily: sans }}>
+              🔗 {link.Text}
+            </span>
+            <span style={{ fontSize: 9, color: "#9ca3af", marginLeft: 6, fontFamily: sans }}>
+              ({link.ActionType === 1 ? "URL" : link.ActionType === 2 ? "Popup" : link.ActionType === 3 ? "Resim" : "Link"})
+            </span>
+          </div>
+        )}
       </div>
     );
   }
@@ -663,9 +703,6 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
   const addDR = () => { const d = field.DependsOn || { FieldId: "", DefaultVisible: false, Rules: {} }; onUpdate(field.Id, { DependsOn: { ...d, Rules: { ...d.Rules, "": { Visible: true } } } }); };
   const upDR = (ok, nk, ru) => { const r = { ...field.DependsOn?.Rules }; if (ok !== nk) delete r[ok]; r[nk] = { ...(r[nk] || r[ok] || {}), ...ru }; onUpdate(field.Id, { DependsOn: { ...field.DependsOn, Rules: r } }); };
   const rmDR = (k) => { const r = { ...field.DependsOn?.Rules }; delete r[k]; onUpdate(field.Id, { DependsOn: { ...field.DependsOn, Rules: r } }); };
-
-  const TRAILING_TYPES = [{ value: 0, label: "Yok" }, { value: 1, label: "QR Tarama" }, { value: 2, label: "OCR Tarama" }, { value: 3, label: "Kişiler" }, { value: 4, label: "Takvim" }, { value: 5, label: "Bilgi" }, { value: 6, label: "Kopyala" }];
-  const LINK_ACTION_TYPES = [{ value: 1, label: "URL Aç" }, { value: 2, label: "Popup Göster" }, { value: 3, label: "Resim Göster" }];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", animation: "slideIn 0.2s ease" }}>
@@ -800,7 +837,8 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
           </Section>
         )}
 
-        {/* ── Link (FieldLink) ── */}
+        {/* ── Link (FieldLink) — sadece InfoText ── */}
+        {ft === 8 && (
         <Section title="Link" defaultOpen={!!field.Config?.Link}>
           {!field.Config?.Link ? (
             <button style={{ background: "none", border: `1px dashed ${C.accent}60`, color: C.accent, padding: "5px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} onClick={() => upLink({ ActionType: 1 })}>+ Link Ekle</button>
@@ -831,6 +869,7 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
             </div>
           )}
         </Section>
+        )}
 
         {/* ── Trailing Action ── */}
         {!isInfo && (
@@ -929,12 +968,15 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
             </div>
           </div>
           {/* Validation rules summary */}
-          {(field.Config?.ValidationRules?.length > 0 || field.Config?.MinLength || field.Config?.MaxLength || field.Config?.Required || field.Config?.Link || field.Config?.TrailingAction) && (
+          {(field.Config?.ValidationRules?.length > 0 || field.Config?.MinLength || field.Config?.MaxLength || field.Config?.MinValue != null || field.Config?.MaxValue != null || field.Config?.Required || field.Config?.Link || field.Config?.TrailingAction || field.Config?.Errors) && (
             <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
               {field.Config?.Required && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.warning + "20", color: C.warning }}>Zorunlu</span>}
-              {field.Config?.MinLength && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.blue + "20", color: C.blue }}>Min: {field.Config.MinLength}</span>}
-              {field.Config?.MaxLength && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.blue + "20", color: C.blue }}>Max: {field.Config.MaxLength}</span>}
+              {field.Config?.MinLength && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.blue + "20", color: C.blue }}>MinLen: {field.Config.MinLength}</span>}
+              {field.Config?.MaxLength && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.blue + "20", color: C.blue }}>MaxLen: {field.Config.MaxLength}</span>}
+              {field.Config?.MinValue != null && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.blue + "20", color: C.blue }}>MinVal: {field.Config.MinValue}</span>}
+              {field.Config?.MaxValue != null && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.blue + "20", color: C.blue }}>MaxVal: {field.Config.MaxValue}</span>}
               {field.Config?.DefaultValue && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.success + "20", color: C.success }}>Default: {field.Config.DefaultValue}</span>}
+              {field.Config?.Errors && Object.values(field.Config.Errors).some(v => v) && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: "#ef4444" + "20", color: "#ef4444" }}>⚠ Özel Hatalar</span>}
               {field.Config?.Link && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: "#8b5cf6" + "20", color: "#8b5cf6" }}>🔗 Link</span>}
               {field.Config?.TrailingAction && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: "#f97316" + "20", color: "#f97316" }}>⚡ {TRAILING_TYPES.find(t => t.value === field.Config.TrailingAction.Type)?.label || "Action"}</span>}
               {(field.Config?.ValidationRules || []).map((r, i) => (
