@@ -360,16 +360,53 @@ const runValidation = (value, field) => {
 // MOBILE PREVIEW COMPONENT (interactive with validate button)
 // ═══════════════════════════════════════════════════════════════
 function FieldPreview({ field }) {
-  const [value, setValue] = useState("");
+  const [rawValue, setRawValue] = useState("");
   const [validated, setValidated] = useState(false);
   const [selectedOpt, setSelectedOpt] = useState(null);
   const [checked, setChecked] = useState(false);
   const [radioVal, setRadioVal] = useState(null);
 
+  // ── Mask helpers ──
+  // mask: "### ### ## ##"  →  # = kullanıcı karakteri, diğerleri sabit
+  const applyMask = (raw, mask) => {
+    if (!mask) return raw;
+    let result = "";
+    let rawIdx = 0;
+    for (let i = 0; i < mask.length && rawIdx < raw.length; i++) {
+      if (mask[i] === "#") {
+        result += raw[rawIdx];
+        rawIdx++;
+      } else {
+        result += mask[i];
+        // Eğer kullanıcı zaten sabit karakteri yazdıysa atla
+        if (raw[rawIdx] === mask[i]) rawIdx++;
+      }
+    }
+    return result;
+  };
+
+  const stripMask = (formatted, mask) => {
+    if (!mask) return formatted;
+    let raw = "";
+    for (let i = 0; i < formatted.length; i++) {
+      const maskChar = mask[i];
+      if (maskChar === "#") {
+        raw += formatted[i];
+      }
+      // Sabit karakterleri atla
+    }
+    return raw;
+  };
+
+  const getMaskMaxRaw = (mask) => {
+    if (!mask) return Infinity;
+    return (mask.match(/#/g) || []).length;
+  };
+
   // Reset when field changes — use DefaultValue if available
   useEffect(() => {
     const dv = field?.Config?.DefaultValue || "";
-    setValue(dv);
+    setRawValue(dv);
     setValidated(false);
     if (field?.FieldType === 2 && dv && field?.Config?.Options) {
       const idx = field.Config.Options.findIndex(o => o.Value === dv);
@@ -384,11 +421,17 @@ function FieldPreview({ field }) {
   const cfg = field.Config || {};
   const label = field.Label || "Alan Adı";
   const ph = cfg.Placeholder || "";
+  const mask = cfg.Mask && cfg.Mask.includes("#") ? cfg.Mask : null;
   const required = cfg.Required;
   const disabled = cfg.Enabled === false;
   const hidden = cfg.Visible === false;
-  
-  const errors = validated ? runValidation(value, field) : [];
+
+  // Mask uygula: raw değer saklanır, görüntü maskelidir
+  const displayValue = mask ? applyMask(rawValue, mask) : rawValue;
+  // Validation'a raw değer gider (masksız)
+  const validationValue = rawValue;
+
+  const errors = validated ? runValidation(validationValue, field) : [];
   const hasError = errors.length > 0;
   const isValid = validated && !hasError;
 
@@ -398,11 +441,27 @@ function FieldPreview({ field }) {
   const baseBorder = hasError ? "#ef4444" : isValid ? "#22c55e" : "#d1d5db";
   const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${baseBorder}`, fontSize: 14, color: "#111827", background: disabled ? "#f3f4f6" : "#fff", fontFamily: sans, outline: "none", boxSizing: "border-box", transition: "border-color 0.15s" };
   const reqDot = required ? <span style={{ color: "#ef4444", fontSize: 14 }}>*</span> : null;
-  const charCount = value.length;
+  const charCount = rawValue.length;
   const maxLen = cfg.MaxLength;
+  const maskMaxRaw = mask ? getMaskMaxRaw(mask) : null;
+
+  const handleMaskedChange = (e) => {
+    const inputVal = e.target.value;
+    if (mask) {
+      // Kullanıcı maskelenmiş input'a yazıyor → raw'a çevir
+      const stripped = stripMask(inputVal, mask);
+      // Sadece mask'ın izin verdiği kadar raw karakter al
+      const maxRaw = getMaskMaxRaw(mask);
+      const clamped = stripped.substring(0, maxRaw);
+      setRawValue(clamped);
+    } else {
+      setRawValue(inputVal);
+    }
+    if (validated) setValidated(false);
+  };
 
   const handleValidate = () => setValidated(true);
-  const handleReset = () => { setValue(""); setValidated(false); setSelectedOpt(null); setChecked(false); setRadioVal(null); };
+  const handleReset = () => { setRawValue(""); setValidated(false); setSelectedOpt(null); setChecked(false); setRadioVal(null); };
 
   const errorEl = hasError ? (
     <div style={{ marginTop: 6 }}>
@@ -423,7 +482,7 @@ function FieldPreview({ field }) {
   const counterEl = (ft === 1 || ft === 6) ? (
     <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 10, fontFamily: sans }}>
       <span style={{ color: charCount > 0 && maxLen && charCount > maxLen ? "#ef4444" : "#9ca3af" }}>
-        {charCount}{maxLen ? ` / ${maxLen}` : ""} karakter
+        {charCount}{maxLen ? ` / ${maxLen}` : maskMaxRaw ? ` / ${maskMaxRaw}` : ""} karakter
       </span>
       {cfg.MinLength && <span style={{ color: charCount > 0 && charCount < cfg.MinLength ? "#f59e0b" : "#9ca3af" }}>min: {cfg.MinLength}</span>}
     </div>
@@ -441,6 +500,9 @@ function FieldPreview({ field }) {
     </div>
   ) : null;
 
+  // Mask placeholder: ### ### ## ## → ___ ___ __ __
+  const maskPlaceholder = mask ? mask.replace(/#/g, "_") : null;
+
   if (hidden) {
     return (
       <div style={{ ...wrap, border: "1px dashed #d1d5db" }}>
@@ -456,9 +518,10 @@ function FieldPreview({ field }) {
     return (
       <div style={wrap}>
         <div style={labelStyle}>{label}{reqDot}</div>
-        <input style={inputStyle} placeholder={ph || "Değer giriniz..."} disabled={disabled} value={value}
-          onChange={(e) => { setValue(e.target.value); if (validated) setValidated(false); }} />
-        {cfg.Mask && <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 4, fontFamily: "monospace" }}>Maske: {cfg.Mask}</div>}
+        <input style={{ ...inputStyle, fontFamily: mask ? "monospace" : sans, letterSpacing: mask ? "1px" : "normal" }}
+          placeholder={maskPlaceholder || ph || "Değer giriniz..."} disabled={disabled} value={displayValue}
+          onChange={handleMaskedChange} />
+        {mask && <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 3, fontFamily: "monospace" }}>Maske: {mask}</div>}
         {counterEl}
         {errorEl}
         {validEl}
@@ -479,7 +542,7 @@ function FieldPreview({ field }) {
         {cfg.Options?.length > 0 && (
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 8 }}>
             {cfg.Options.map((o, i) => (
-              <span key={i} onClick={() => { setSelectedOpt(o); setValue(o.Value); if (validated) setValidated(false); }}
+              <span key={i} onClick={() => { setSelectedOpt(o); setRawValue(o.Value); if (validated) setValidated(false); }}
                 style={{ background: selectedOpt?.Value === o.Value ? "#3b82f6" : "#f3f4f6", color: selectedOpt?.Value === o.Value ? "#fff" : "#374151", padding: "4px 10px", borderRadius: 12, fontSize: 11, fontFamily: sans, cursor: "pointer", transition: "all 0.15s", border: `1px solid ${selectedOpt?.Value === o.Value ? "#3b82f6" : "#e5e7eb"}` }}>
                 {o.Label || o.Value}
               </span>
@@ -497,7 +560,7 @@ function FieldPreview({ field }) {
   if (ft === 3) {
     return (
       <div style={wrap}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => { setChecked(!checked); setValue(!checked ? "true" : ""); if (validated) setValidated(false); }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => { setChecked(!checked); setRawValue(!checked ? "true" : ""); if (validated) setValidated(false); }}>
           <div style={{ width: 20, height: 20, borderRadius: 4, border: `2px solid ${checked ? "#3b82f6" : hasError ? "#ef4444" : "#d1d5db"}`, background: checked ? "#3b82f6" : "#fff", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}>
             {checked && <span style={{ color: "#fff", fontSize: 12, fontWeight: 700 }}>✓</span>}
           </div>
@@ -518,7 +581,7 @@ function FieldPreview({ field }) {
         <div style={labelStyle}>{label}{reqDot}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {opts.map((o, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => { setRadioVal(o.Value); setValue(o.Value); if (validated) setValidated(false); }}>
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => { setRadioVal(o.Value); setRawValue(o.Value); if (validated) setValidated(false); }}>
               <div style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${radioVal === o.Value ? "#3b82f6" : "#d1d5db"}`, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}>
                 {radioVal === o.Value && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#3b82f6" }} />}
               </div>
@@ -538,8 +601,8 @@ function FieldPreview({ field }) {
     return (
       <div style={wrap}>
         <div style={labelStyle}>{label}{reqDot}</div>
-        <input type="date" style={inputStyle} value={value}
-          onChange={(e) => { setValue(e.target.value); if (validated) setValidated(false); }} />
+        <input type="date" style={inputStyle} value={rawValue}
+          onChange={(e) => { setRawValue(e.target.value); if (validated) setValidated(false); }} />
         {errorEl}
         {validEl}
         {actionBar}
@@ -555,11 +618,12 @@ function FieldPreview({ field }) {
         <div style={labelStyle}>{label}{reqDot}</div>
         <div style={{ ...inputStyle, display: "flex", alignItems: "center", gap: 8, padding: 0, overflow: "hidden" }}>
           <span style={{ color: "#6b7280", fontWeight: 600, fontSize: 14, padding: "10px 0 10px 12px", fontFamily: sans }}>{currency}</span>
-          <input style={{ border: "none", outline: "none", flex: 1, fontSize: 14, color: "#111827", fontFamily: sans, padding: "10px 12px 10px 0", background: "transparent" }}
-            placeholder={ph || "0,00"} value={value} disabled={disabled}
-            onChange={(e) => { setValue(e.target.value); if (validated) setValidated(false); }} />
+          <input style={{ border: "none", outline: "none", flex: 1, fontSize: 14, color: "#111827", fontFamily: mask ? "monospace" : sans, letterSpacing: mask ? "1px" : "normal", padding: "10px 12px 10px 0", background: "transparent" }}
+            placeholder={maskPlaceholder || ph || "0,00"} value={displayValue} disabled={disabled}
+            onChange={handleMaskedChange} />
         </div>
         {counterEl}
+        {mask && <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 3, fontFamily: "monospace" }}>Maske: {mask}</div>}
         {(cfg.MinValue != null || cfg.MaxValue != null) && (
           <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
             {cfg.MinValue != null && <span style={{ fontSize: 10, color: "#9ca3af", fontFamily: sans }}>min: {cfg.MinValue} {currency}</span>}
