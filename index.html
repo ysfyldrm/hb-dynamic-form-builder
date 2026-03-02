@@ -628,22 +628,44 @@ function Section({ title, children, defaultOpen, count }) {
 // ═══════════════════════════════════════════════════════════════
 function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onClose }) {
   if (!field) return null;
-  const hasOpts = field.FieldType === 2 || field.FieldType === 4;
-  const hasLen = field.FieldType === 1;
-  const hasVal = field.FieldType === 6;
+  const ft = field.FieldType;
+  const hasOpts = ft === 2 || ft === 4; // Dropdown, RadioGroup
+  const isInputLike = ft === 1 || ft === 6; // Input, AmountInput
+  const isAmt = ft === 6;
+  const isInfo = ft === 7 || ft === 8;
   const others = allFields.filter((f) => f.Id !== field.Id);
   const inp = { width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: C.text, padding: "8px 10px", borderRadius: 6, fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
+  const smInp = { ...inp, fontSize: 12 };
 
+  // Options CRUD
   const addOpt = () => onUpdateConfig(field.Id, { Options: [...(field.Config?.Options || []), { Value: "", Label: "" }] });
   const upOpt = (i, k, v) => onUpdateConfig(field.Id, { Options: (field.Config?.Options || []).map((o, j) => j === i ? { ...o, [k]: v } : o) });
   const rmOpt = (i) => onUpdateConfig(field.Id, { Options: (field.Config?.Options || []).filter((_, j) => j !== i) });
+
+  // Validation Rules CRUD
   const addVal = () => onUpdateConfig(field.Id, { ValidationRules: [...(field.Config?.ValidationRules || []), { Type: 0, ErrorMessage: "" }] });
   const upVal = (i, u) => onUpdateConfig(field.Id, { ValidationRules: (field.Config?.ValidationRules || []).map((r, j) => j === i ? { ...r, ...u } : r) });
   const rmVal = (i) => onUpdateConfig(field.Id, { ValidationRules: (field.Config?.ValidationRules || []).filter((_, j) => j !== i) });
+
+  // Errors update helper
+  const upErr = (key, val) => onUpdateConfig(field.Id, { Errors: { ...(field.Config?.Errors || {}), [key]: val || undefined } });
+
+  // Link update helper
+  const upLink = (updates) => onUpdateConfig(field.Id, { Link: { ...(field.Config?.Link || {}), ...updates } });
+  const clearLink = () => onUpdateConfig(field.Id, { Link: undefined });
+
+  // TrailingAction update helper
+  const upTrail = (updates) => onUpdateConfig(field.Id, { TrailingAction: { ...(field.Config?.TrailingAction || {}), ...updates } });
+  const clearTrail = () => onUpdateConfig(field.Id, { TrailingAction: undefined });
+
+  // Dependency CRUD
   const setDep = (p) => p ? onUpdate(field.Id, { DependsOn: { FieldId: p, DefaultVisible: false, Rules: {} } }) : onUpdate(field.Id, { DependsOn: undefined });
   const addDR = () => { const d = field.DependsOn || { FieldId: "", DefaultVisible: false, Rules: {} }; onUpdate(field.Id, { DependsOn: { ...d, Rules: { ...d.Rules, "": { Visible: true } } } }); };
   const upDR = (ok, nk, ru) => { const r = { ...field.DependsOn?.Rules }; if (ok !== nk) delete r[ok]; r[nk] = { ...(r[nk] || r[ok] || {}), ...ru }; onUpdate(field.Id, { DependsOn: { ...field.DependsOn, Rules: r } }); };
   const rmDR = (k) => { const r = { ...field.DependsOn?.Rules }; delete r[k]; onUpdate(field.Id, { DependsOn: { ...field.DependsOn, Rules: r } }); };
+
+  const TRAILING_TYPES = [{ value: 0, label: "Yok" }, { value: 1, label: "QR Tarama" }, { value: 2, label: "OCR Tarama" }, { value: 3, label: "Kişiler" }, { value: 4, label: "Takvim" }, { value: 5, label: "Bilgi" }, { value: 6, label: "Kopyala" }];
+  const LINK_ACTION_TYPES = [{ value: 1, label: "URL Aç" }, { value: 2, label: "Popup Göster" }, { value: 3, label: "Resim Göster" }];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", animation: "slideIn 0.2s ease" }}>
@@ -659,7 +681,7 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
       {/* Scrollable content */}
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px" }}>
 
-        {/* ── Temel ── */}
+        {/* ── Temel Bilgiler ── */}
         <Section title="Temel Bilgiler">
           <Label text="Alan ID *" />
           <input style={inp} value={field.Id} onChange={(e) => onUpdate(field.Id, { Id: e.target.value })} />
@@ -681,6 +703,12 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
           </div>
           <Label text="Placeholder" />
           <input style={inp} value={field.Config?.Placeholder || ""} onChange={(e) => onUpdateConfig(field.Id, { Placeholder: e.target.value })} />
+          <Label text="Varsayılan Değer" />
+          <input style={inp} value={field.Config?.DefaultValue || ""} onChange={(e) => onUpdateConfig(field.Id, { DefaultValue: e.target.value || undefined })} placeholder="Boş bırakılabilir" />
+          {isAmt && (
+            <><Label text="Para Birimi" />
+            <input style={inp} value={field.Config?.CurrencyName || ""} onChange={(e) => onUpdateConfig(field.Id, { CurrencyName: e.target.value || undefined })} placeholder="TRY" /></>
+          )}
           <div style={{ display: "flex", gap: 16, marginTop: 10 }}>
             {[["Visible", "Görünür"], ["Enabled", "Aktif"], ["Required", "Zorunlu"]].map(([p, l]) => (
               <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer" }}>
@@ -690,33 +718,29 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
           </div>
         </Section>
 
-        {/* ── Uzunluk ── */}
-        {hasLen && (
+        {/* ── Uzunluk & Klavye (Input + AmountInput) ── */}
+        {isInputLike && (
           <Section title="Uzunluk & Klavye">
             <div style={{ display: "flex", gap: 8 }}>
-              <div style={{ flex: 1 }}><Label text="Min" /><input style={inp} type="number" value={field.Config?.MinLength ?? ""} onChange={(e) => onUpdateConfig(field.Id, { MinLength: e.target.value ? parseInt(e.target.value) : null })} /></div>
-              <div style={{ flex: 1 }}><Label text="Max" /><input style={inp} type="number" value={field.Config?.MaxLength ?? ""} onChange={(e) => onUpdateConfig(field.Id, { MaxLength: e.target.value ? parseInt(e.target.value) : null })} /></div>
+              <div style={{ flex: 1 }}><Label text="MinLength" /><input style={inp} type="number" value={field.Config?.MinLength ?? ""} onChange={(e) => onUpdateConfig(field.Id, { MinLength: e.target.value ? parseInt(e.target.value) : null })} /></div>
+              <div style={{ flex: 1 }}><Label text="MaxLength" /><input style={inp} type="number" value={field.Config?.MaxLength ?? ""} onChange={(e) => onUpdateConfig(field.Id, { MaxLength: e.target.value ? parseInt(e.target.value) : null })} /></div>
             </div>
+            {isAmt && (
+              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                <div style={{ flex: 1 }}><Label text="MinValue" /><input style={inp} type="number" step="0.01" value={field.Config?.MinValue ?? ""} onChange={(e) => onUpdateConfig(field.Id, { MinValue: e.target.value ? parseFloat(e.target.value) : null })} /></div>
+                <div style={{ flex: 1 }}><Label text="MaxValue" /><input style={inp} type="number" step="0.01" value={field.Config?.MaxValue ?? ""} onChange={(e) => onUpdateConfig(field.Id, { MaxValue: e.target.value ? parseFloat(e.target.value) : null })} /></div>
+              </div>
+            )}
             <Label text="Maske" />
-            <input style={inp} value={field.Config?.Mask || ""} onChange={(e) => onUpdateConfig(field.Id, { Mask: e.target.value })} placeholder="### ### ## ##" />
-            <Label text="Klavye" />
-            <select style={inp} value={field.Config?.KeyboardType ?? 0} onChange={(e) => onUpdateConfig(field.Id, { KeyboardType: parseInt(e.target.value) })}>
+            <input style={inp} value={field.Config?.Mask || ""} onChange={(e) => onUpdateConfig(field.Id, { Mask: e.target.value || undefined })} placeholder="### ### ## ##" />
+            <Label text="Klavye Tipi" />
+            <select style={inp} value={field.Config?.KeyboardType ?? 0} onChange={(e) => onUpdateConfig(field.Id, { KeyboardType: parseInt(e.target.value) || undefined })}>
               {KEYBOARD_TYPES.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
             </select>
           </Section>
         )}
 
-        {/* ── Değer ── */}
-        {hasVal && (
-          <Section title="Değer Sınırları">
-            <div style={{ display: "flex", gap: 8 }}>
-              <div style={{ flex: 1 }}><Label text="Min" /><input style={inp} type="number" step="0.01" value={field.Config?.MinValue ?? ""} onChange={(e) => onUpdateConfig(field.Id, { MinValue: e.target.value ? parseFloat(e.target.value) : null })} /></div>
-              <div style={{ flex: 1 }}><Label text="Max" /><input style={inp} type="number" step="0.01" value={field.Config?.MaxValue ?? ""} onChange={(e) => onUpdateConfig(field.Id, { MaxValue: e.target.value ? parseFloat(e.target.value) : null })} /></div>
-            </div>
-          </Section>
-        )}
-
-        {/* ── Seçenekler ── */}
+        {/* ── Seçenekler (Dropdown, RadioGroup) ── */}
         {hasOpts && (
           <Section title="Seçenekler" count={field.Config?.Options?.length || 0}>
             {(field.Config?.Options || []).map((opt, idx) => (
@@ -731,23 +755,110 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
           </Section>
         )}
 
-        {/* ── Doğrulama ── */}
-        <Section title="Doğrulama" count={field.Config?.ValidationRules?.length || 0} defaultOpen={false}>
-          {(field.Config?.ValidationRules || []).map((rule, idx) => (
-            <div key={idx} style={{ background: C.bg, borderRadius: 6, padding: 10, marginBottom: 6, border: `1px solid ${C.border}` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.text2 }}>Kural {idx + 1}</span>
-                <button style={{ background: C.danger + "20", border: "none", color: C.danger, width: 22, height: 22, borderRadius: 4, cursor: "pointer", fontSize: 11 }} onClick={() => rmVal(idx)}>✕</button>
+        {/* ── Doğrulama Kuralları ── */}
+        {!isInfo && (
+          <Section title="Doğrulama Kuralları" count={field.Config?.ValidationRules?.length || 0} defaultOpen={false}>
+            {(field.Config?.ValidationRules || []).map((rule, idx) => (
+              <div key={idx} style={{ background: C.bg, borderRadius: 6, padding: 10, marginBottom: 6, border: `1px solid ${C.border}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.text2 }}>Kural {idx + 1}</span>
+                  <button style={{ background: C.danger + "20", border: "none", color: C.danger, width: 22, height: 22, borderRadius: 4, cursor: "pointer", fontSize: 11 }} onClick={() => rmVal(idx)}>✕</button>
+                </div>
+                <Label text="Tip" />
+                <select style={smInp} value={rule.Type ?? 0} onChange={(e) => upVal(idx, { Type: parseInt(e.target.value) })}>
+                  {VALIDATION_TYPES.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
+                </select>
+                <Label text="Hata Mesajı" />
+                <input style={{ ...smInp, marginTop: 2 }} value={rule.ErrorMessage || ""} onChange={(e) => upVal(idx, { ErrorMessage: e.target.value })} placeholder="Geçersiz değer girildi" />
+                {rule.Type === 0 && <><Label text="Regex Pattern" /><input style={{ ...smInp, marginTop: 2 }} value={rule.Pattern || ""} onChange={(e) => upVal(idx, { Pattern: e.target.value })} placeholder="^[0-9]{10,11}$" /></>}
               </div>
-              <select style={inp} value={rule.Type ?? 0} onChange={(e) => upVal(idx, { Type: parseInt(e.target.value) })}>
-                {VALIDATION_TYPES.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
-              </select>
-              <input style={{ ...inp, marginTop: 6 }} value={rule.ErrorMessage || ""} onChange={(e) => upVal(idx, { ErrorMessage: e.target.value })} placeholder="Hata mesajı" />
-              {rule.Type === 0 && <input style={{ ...inp, marginTop: 6 }} value={rule.Pattern || ""} onChange={(e) => upVal(idx, { Pattern: e.target.value })} placeholder="Regex" />}
+            ))}
+            <button style={{ background: "none", border: `1px dashed ${C.accent}60`, color: C.accent, padding: "5px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, marginTop: 4 }} onClick={addVal}>+ Doğrulama Kuralı</button>
+          </Section>
+        )}
+
+        {/* ── Hata Mesajları (FieldErrors) ── */}
+        {!isInfo && (
+          <Section title="Hata Mesajları" defaultOpen={false}>
+            <div style={{ fontSize: 10, color: C.text2, marginBottom: 8, lineHeight: 1.4 }}>
+              Zorunlu, min/max uzunluk ve değer kontrolleri için özel hata mesajları. Boş bırakılırsa varsayılan mesaj kullanılır. <code style={{ color: C.accent, fontSize: 10 }}>{"{0}"}</code> ile limit değeri yazılır.
             </div>
-          ))}
-          <button style={{ background: "none", border: `1px dashed ${C.accent}60`, color: C.accent, padding: "5px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, marginTop: 4 }} onClick={addVal}>+ Doğrulama</button>
+            <Label text="Zorunlu Alan Hatası" />
+            <input style={smInp} value={field.Config?.Errors?.Required || ""} onChange={(e) => upErr("Required", e.target.value)} placeholder="Bu alan zorunludur" />
+            <Label text="Min Uzunluk Hatası" />
+            <input style={smInp} value={field.Config?.Errors?.MinLength || ""} onChange={(e) => upErr("MinLength", e.target.value)} placeholder="En az {0} karakter girilmeli" />
+            <Label text="Max Uzunluk Hatası" />
+            <input style={smInp} value={field.Config?.Errors?.MaxLength || ""} onChange={(e) => upErr("MaxLength", e.target.value)} placeholder="En fazla {0} karakter girilmeli" />
+            {isAmt && (
+              <>
+                <Label text="Min Değer Hatası" />
+                <input style={smInp} value={field.Config?.Errors?.MinValue || ""} onChange={(e) => upErr("MinValue", e.target.value)} placeholder="En az {0} girilmeli" />
+                <Label text="Max Değer Hatası" />
+                <input style={smInp} value={field.Config?.Errors?.MaxValue || ""} onChange={(e) => upErr("MaxValue", e.target.value)} placeholder="En fazla {0} girilmeli" />
+              </>
+            )}
+          </Section>
+        )}
+
+        {/* ── Link (FieldLink) ── */}
+        <Section title="Link" defaultOpen={!!field.Config?.Link}>
+          {!field.Config?.Link ? (
+            <button style={{ background: "none", border: `1px dashed ${C.accent}60`, color: C.accent, padding: "5px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} onClick={() => upLink({ ActionType: 1 })}>+ Link Ekle</button>
+          ) : (
+            <div style={{ background: C.bg, borderRadius: 6, padding: 10, border: `1px solid ${C.border}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.text2 }}>Link Ayarları</span>
+                <button style={{ background: C.danger + "20", border: "none", color: C.danger, width: 22, height: 22, borderRadius: 4, cursor: "pointer", fontSize: 11 }} onClick={clearLink}>✕</button>
+              </div>
+              <Label text="Link Metni" />
+              <input style={smInp} value={field.Config.Link.Text || ""} onChange={(e) => upLink({ Text: e.target.value })} placeholder="Detaylar için tıklayın" />
+              <Label text="Aksiyon Tipi" />
+              <select style={smInp} value={field.Config.Link.ActionType ?? 1} onChange={(e) => upLink({ ActionType: parseInt(e.target.value) })}>
+                {LINK_ACTION_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+              {(field.Config.Link.ActionType === 1 || !field.Config.Link.ActionType) && (
+                <><Label text="URL" /><input style={smInp} value={field.Config.Link.Url || ""} onChange={(e) => upLink({ Url: e.target.value })} placeholder="https://..." /></>
+              )}
+              {field.Config.Link.ActionType === 3 && (
+                <><Label text="Resim URL" /><input style={smInp} value={field.Config.Link.ImageUrl || ""} onChange={(e) => upLink({ ImageUrl: e.target.value })} placeholder="https://...image.png" /></>
+              )}
+              {field.Config.Link.ActionType === 2 && (
+                <>
+                  <Label text="Popup Başlık" /><input style={smInp} value={field.Config.Link.PopupTitle || ""} onChange={(e) => upLink({ PopupTitle: e.target.value })} />
+                  <Label text="Popup İçerik" /><textarea style={{ ...smInp, minHeight: 50, resize: "vertical" }} value={field.Config.Link.PopupContent || ""} onChange={(e) => upLink({ PopupContent: e.target.value })} />
+                </>
+              )}
+            </div>
+          )}
         </Section>
+
+        {/* ── Trailing Action ── */}
+        {!isInfo && (
+          <Section title="Sağ Aksiyon (Trailing)" defaultOpen={!!field.Config?.TrailingAction}>
+            {!field.Config?.TrailingAction ? (
+              <button style={{ background: "none", border: `1px dashed ${C.accent}60`, color: C.accent, padding: "5px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} onClick={() => upTrail({ Type: 1 })}>+ Aksiyon Ekle</button>
+            ) : (
+              <div style={{ background: C.bg, borderRadius: 6, padding: 10, border: `1px solid ${C.border}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.text2 }}>Trailing Action</span>
+                  <button style={{ background: C.danger + "20", border: "none", color: C.danger, width: 22, height: 22, borderRadius: 4, cursor: "pointer", fontSize: 11 }} onClick={clearTrail}>✕</button>
+                </div>
+                <Label text="Tip" />
+                <select style={smInp} value={field.Config.TrailingAction.Type ?? 0} onChange={(e) => upTrail({ Type: parseInt(e.target.value) })}>
+                  {TRAILING_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+                {field.Config.TrailingAction.Type === 2 && (
+                  <><Label text="OCR Pattern" /><input style={smInp} value={field.Config.TrailingAction.Pattern || ""} onChange={(e) => upTrail({ Pattern: e.target.value })} placeholder="Regex" /></>
+                )}
+                <Label text="Arama Alanı (SearchField)" />
+                <input style={smInp} value={field.Config.TrailingAction.SearchField || ""} onChange={(e) => upTrail({ SearchField: e.target.value || undefined })} placeholder="Opsiyonel" />
+                {field.Config.TrailingAction.Type === 5 && (
+                  <><Label text="Bilgi Mesajı" /><textarea style={{ ...smInp, minHeight: 50, resize: "vertical" }} value={field.Config.TrailingAction.InfoMessage || ""} onChange={(e) => upTrail({ InfoMessage: e.target.value })} /></>
+                )}
+              </div>
+            )}
+          </Section>
+        )}
 
         {/* ── Bağımlılık ── */}
         <Section title="Bağımlılık" defaultOpen={!!field.DependsOn}>
@@ -766,22 +877,33 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
                     <input type="checkbox" checked={!!field.DependsOn?.DefaultVisible} onChange={(e) => onUpdate(field.Id, { DependsOn: { ...field.DependsOn, DefaultVisible: e.target.checked } })} /> Varsayılan Görünür
                   </label>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, fontSize: 11, color: C.text2 }}>
-                    <span>Kurallar</span>
-                    <button style={{ background: "none", border: `1px dashed ${C.accent}60`, color: C.accent, padding: "3px 10px", borderRadius: 6, fontSize: 10, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} onClick={addDR}>+</button>
+                    <span style={{ fontWeight: 700 }}>Kurallar</span>
+                    <button style={{ background: "none", border: `1px dashed ${C.accent}60`, color: C.accent, padding: "3px 10px", borderRadius: 6, fontSize: 10, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} onClick={addDR}>+ Kural</button>
                   </div>
                   {Object.entries(field.DependsOn?.Rules || {}).map(([key, rule]) => (
                     <div key={key} style={{ background: C.bg, borderRadius: 6, padding: 10, marginTop: 6, border: `1px solid ${C.border}` }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, alignItems: "center" }}>
-                        <input style={{ ...inp, maxWidth: 150 }} value={key} onChange={(e) => upDR(key, e.target.value, rule)} placeholder="Değer" />
+                        <input style={{ ...inp, maxWidth: 150 }} value={key} onChange={(e) => upDR(key, e.target.value, rule)} placeholder="Tetikleyici değer" />
                         <button style={{ background: C.danger + "20", border: "none", color: C.danger, width: 22, height: 22, borderRadius: 4, cursor: "pointer", fontSize: 11 }} onClick={() => rmDR(key)}>✕</button>
                       </div>
-                      <div style={{ display: "flex", gap: 12, marginTop: 6 }}>
-                        {[["Visible", "Görünür"], ["Required", "Zorunlu"]].map(([p, l]) => (
+                      <div style={{ display: "flex", gap: 12, marginTop: 6, flexWrap: "wrap" }}>
+                        {[["Visible", "Görünür"], ["Enabled", "Aktif"], ["Required", "Zorunlu"]].map(([p, l]) => (
                           <label key={p} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.text2, cursor: "pointer" }}>
-                            <input type="checkbox" checked={p === "Required" ? !!rule[p] : rule[p] !== false} onChange={(e) => upDR(key, key, { ...rule, [p]: e.target.checked })} /> {l}
+                            <input type="checkbox" checked={p === "Required" ? !!rule[p] : p === "Enabled" ? rule[p] !== false : rule[p] !== false} onChange={(e) => upDR(key, key, { ...rule, [p]: e.target.checked })} /> {l}
                           </label>
                         ))}
                       </div>
+                      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                        <div style={{ flex: 1 }}><Label text="MinLength" /><input style={smInp} type="number" value={rule.MinLength ?? ""} onChange={(e) => upDR(key, key, { ...rule, MinLength: e.target.value ? parseInt(e.target.value) : undefined })} /></div>
+                        <div style={{ flex: 1 }}><Label text="MaxLength" /><input style={smInp} type="number" value={rule.MaxLength ?? ""} onChange={(e) => upDR(key, key, { ...rule, MaxLength: e.target.value ? parseInt(e.target.value) : undefined })} /></div>
+                      </div>
+                      <Label text="Placeholder (Override)" />
+                      <input style={smInp} value={rule.Placeholder || ""} onChange={(e) => upDR(key, key, { ...rule, Placeholder: e.target.value || undefined })} placeholder="Opsiyonel" />
+                      <Label text="Klavye Tipi (Override)" />
+                      <select style={smInp} value={rule.KeyboardType ?? ""} onChange={(e) => upDR(key, key, { ...rule, KeyboardType: e.target.value ? parseInt(e.target.value) : undefined })}>
+                        <option value="">— Değiştirme —</option>
+                        {KEYBOARD_TYPES.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+                      </select>
                     </div>
                   ))}
                 </>
@@ -807,11 +929,14 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
             </div>
           </div>
           {/* Validation rules summary */}
-          {(field.Config?.ValidationRules?.length > 0 || field.Config?.MinLength || field.Config?.MaxLength || field.Config?.Required) && (
+          {(field.Config?.ValidationRules?.length > 0 || field.Config?.MinLength || field.Config?.MaxLength || field.Config?.Required || field.Config?.Link || field.Config?.TrailingAction) && (
             <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
               {field.Config?.Required && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.warning + "20", color: C.warning }}>Zorunlu</span>}
               {field.Config?.MinLength && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.blue + "20", color: C.blue }}>Min: {field.Config.MinLength}</span>}
               {field.Config?.MaxLength && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.blue + "20", color: C.blue }}>Max: {field.Config.MaxLength}</span>}
+              {field.Config?.DefaultValue && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.success + "20", color: C.success }}>Default: {field.Config.DefaultValue}</span>}
+              {field.Config?.Link && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: "#8b5cf6" + "20", color: "#8b5cf6" }}>🔗 Link</span>}
+              {field.Config?.TrailingAction && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: "#f97316" + "20", color: "#f97316" }}>⚡ {TRAILING_TYPES.find(t => t.value === field.Config.TrailingAction.Type)?.label || "Action"}</span>}
               {(field.Config?.ValidationRules || []).map((r, i) => (
                 <span key={i} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.accent2 + "20", color: C.accent2 }}>
                   {VALIDATION_TYPES.find(v => v.value === r.Type)?.label || "Regex"}{r.Pattern ? `: ${r.Pattern.substring(0, 20)}${r.Pattern.length > 20 ? "…" : ""}` : ""}
