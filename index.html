@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dynamic Form Builder — Halkbank</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Courier New', monospace; background: #0f0f1a; color: #e8e8f0; }
+    #root { min-height: 100vh; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+    ::selection { background: #64ffda40; color: #64ffda; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #1a1a2e; }
+    ::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #64ffda40; }
+    input:focus, select:focus, textarea:focus { border-color: #64ffda !important; box-shadow: 0 0 0 1px #64ffda40; }
+  </style>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+const { useState, useCallback, useRef, useEffect } = React;
+
+const FIELD_TYPES = [
+  { value: 1, label: "Input", icon: "✏️" },
+  { value: 2, label: "Dropdown", icon: "📋" },
+  { value: 3, label: "Checkbox", icon: "☑️" },
+  { value: 4, label: "RadioGroup", icon: "🔘" },
+  { value: 5, label: "DatePicker", icon: "📅" },
+  { value: 6, label: "AmountInput", icon: "💰" },
+  { value: 7, label: "InfoCard", icon: "ℹ️" },
+  { value: 8, label: "InfoText", icon: "📝" },
+];
+
+const KEYBOARD_TYPES = [
+  { value: 0, label: "Default" },
+  { value: 1, label: "Text" },
+  { value: 2, label: "Number" },
+  { value: 3, label: "NumberPassword" },
+  { value: 4, label: "Phone" },
+  { value: 5, label: "Email" },
+];
+
+const VALIDATION_TYPES = [
+  { value: 0, label: "None (Regex)" },
+  { value: 1, label: "TCKN" },
+  { value: 2, label: "VKN" },
+  { value: 3, label: "IBAN" },
+  { value: 4, label: "Email" },
+  { value: 5, label: "Phone" },
+];
+
+const TEMPLATES = [
+  {
+    name: "Basit Input",
+    desc: "Ad Soyad + Telefon",
+    json: {
+      Sections: [{ Id: "main", Title: "TEMEL BİLGİLER", Order: 1 }],
+      FormFields: [
+        { Id: "name", Order: 1, FieldType: 1, Label: "Ad Soyad", SectionId: "main", Config: { Visible: true, Enabled: true, Required: true, MinLength: 3, MaxLength: 50, Placeholder: "Adınızı giriniz", KeyboardType: 1 } },
+        { Id: "phone", Order: 2, FieldType: 1, Label: "Telefon", SectionId: "main", Config: { Visible: true, Enabled: true, Required: true, MinLength: 10, MaxLength: 10, Placeholder: "5XX XXX XX XX", KeyboardType: 4, Mask: "### ### ## ##" } },
+      ],
+    },
+  },
+  {
+    name: "Dropdown → Input Dependency",
+    desc: "Kimlik tipi seçimine göre input kuralları değişir",
+    json: {
+      Sections: [{ Id: "identity", Title: "KİMLİK BİLGİLERİ", Order: 1 }],
+      FormFields: [
+        { Id: "id_type", Order: 1, FieldType: 2, Label: "Kimlik Tipi", SectionId: "identity", Config: { Visible: true, Enabled: true, Required: true, Options: [{ Value: "tckn", Label: "TCKN" }, { Value: "vkn", Label: "VKN" }, { Value: "passport", Label: "Pasaport" }] } },
+        { Id: "id_number", Order: 2, FieldType: 1, Label: "Kimlik Numarası", SectionId: "identity", Config: { Visible: true, Enabled: true, Required: true, MinLength: 11, MaxLength: 11, Placeholder: "TCKN giriniz", KeyboardType: 2 }, DependsOn: { FieldId: "id_type", DefaultVisible: true, Rules: { tckn: { MinLength: 11, MaxLength: 11, Placeholder: "11 haneli TCKN", ValidationRules: [{ Type: 1, ErrorMessage: "Geçerli TCKN giriniz" }] }, vkn: { MinLength: 10, MaxLength: 10, Placeholder: "10 haneli VKN", ValidationRules: [{ Type: 2, ErrorMessage: "Geçerli VKN giriniz" }] }, passport: { MinLength: 6, MaxLength: 9, Placeholder: "Pasaport No", KeyboardType: 1 } } } },
+      ],
+    },
+  },
+  {
+    name: "İŞKUR Ödeme",
+    desc: "Borç türüne göre tahakkuk veya taksit alanı açılır",
+    json: {
+      Sections: [{ Id: "payment", Title: "ÖDEME BİLGİLERİ", Order: 1 }],
+      FormFields: [
+        { Id: "debt_type", Order: 1, FieldType: 2, Label: "Borç Türü", SectionId: "payment", Config: { Visible: true, Enabled: true, Required: true, Options: [{ Value: "Tahakkuk Ödemesi", Label: "Tahakkuk" }, { Value: "Taksit", Label: "Taksit" }] } },
+        { Id: "tckn", Order: 2, FieldType: 1, Label: "TCKN-VKN", SectionId: "payment", Config: { Visible: true, Enabled: true, Required: true, MinLength: 10, MaxLength: 11, KeyboardType: 3 } },
+        { Id: "tahakkuk_no", Order: 3, FieldType: 1, Label: "Tahakkuk No", SectionId: "payment", Config: { Visible: false, Required: false, KeyboardType: 3 }, DependsOn: { FieldId: "debt_type", DefaultVisible: false, Rules: { "Tahakkuk Ödemesi": { Visible: true, Required: false, MaxLength: 31 } } } },
+        { Id: "taksit", Order: 4, FieldType: 1, Label: "Taksit No", SectionId: "payment", Config: { Visible: false, Required: false, KeyboardType: 3 }, DependsOn: { FieldId: "debt_type", DefaultVisible: false, Rules: { Taksit: { Visible: true, Required: true, MaxLength: 31 } } } },
+      ],
+    },
+  },
+  {
+    name: "Chained Dependencies",
+    desc: "3 seviye zincirleme dependency: Kimlik → Ülke → Detay",
+    json: {
+      Sections: [{ Id: "identity", Title: "KİMLİK BİLGİLERİ", Order: 1 }],
+      FormFields: [
+        { Id: "id_type", Order: 1, FieldType: 2, Label: "Kimlik Tipi", SectionId: "identity", Config: { Visible: true, Required: true, Options: [{ Value: "tckn", Label: "TCKN" }, { Value: "passport", Label: "Pasaport" }] } },
+        { Id: "passport_country", Order: 2, FieldType: 2, Label: "Pasaport Ülkesi", SectionId: "identity", Config: { Visible: false, Required: false, Options: [{ Value: "de", Label: "Almanya" }, { Value: "us", Label: "ABD" }, { Value: "other", Label: "Diğer" }] }, DependsOn: { FieldId: "id_type", DefaultVisible: false, Rules: { passport: { Visible: true, Required: true } } } },
+        { Id: "other_country", Order: 3, FieldType: 1, Label: "Ülke Adı", SectionId: "identity", Config: { Visible: false, Required: false, MinLength: 2, MaxLength: 50, Placeholder: "Ülke adını giriniz" }, DependsOn: { FieldId: "passport_country", DefaultVisible: false, Rules: { other: { Visible: true, Required: true } } } },
+      ],
+    },
+  },
+];
+
+const createEmptyField = (order) => ({
+  Id: "field_" + Date.now().toString(36),
+  Order: order,
+  FieldType: 1,
+  Label: "",
+  SectionId: "main",
+  Config: { Visible: true, Enabled: true, Required: false },
+});
+
+const generateShareUrl = (json) => {
+  try {
+    const compressed = btoa(unescape(encodeURIComponent(JSON.stringify(json))));
+    return window.location.origin + window.location.pathname + "#" + compressed;
+  } catch(e) { return null; }
+};
+
+const parseShareUrl = () => {
+  try {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return null;
+    return JSON.parse(decodeURIComponent(escape(atob(hash))));
+  } catch(e) { return null; }
+};
+
+const generateQR = (text, size) => {
+  return "https://api.qrserver.com/v1/create-qr-code/?size=" + size + "x" + size + "&data=" + encodeURIComponent(text) + "&bgcolor=1a1a2e&color=64ffda&format=svg";
+};
+
+const C = {
+  bg: "#0f0f1a", surface: "#1a1a2e", surface2: "#222240", border: "#2a2a4a",
+  accent: "#64ffda", accent2: "#7c4dff", text: "#e8e8f0", text2: "#8888aa",
+  danger: "#ff5252", warning: "#ffab40", success: "#69f0ae", blue: "#448aff",
+};
+
+function Label({ text }) {
+  const isReq = text.endsWith("*");
+  return React.createElement("label", { style: { display: "block", fontSize: 11, color: C.text2, marginTop: 10, marginBottom: 4, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.5 } },
+    isReq ? text.slice(0, -2) : text,
+    isReq && React.createElement("span", { style: { color: C.danger, marginLeft: 2 } }, "*")
+  );
+}
+
+function Section({ title, children, defaultOpen }) {
+  const [open, setOpen] = useState(defaultOpen !== false);
+  return React.createElement("div", { style: { marginBottom: 16, background: C.surface2, borderRadius: 8, overflow: "hidden", border: "1px solid " + C.border } },
+    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", cursor: "pointer", color: C.accent, fontWeight: 600, fontSize: 12, textTransform: "uppercase", letterSpacing: 1 }, onClick: () => setOpen(!open) },
+      React.createElement("span", null, title),
+      React.createElement("span", null, open ? "▾" : "▸")
+    ),
+    open && React.createElement("div", { style: { padding: "0 14px 14px" } }, children)
+  );
+}
+
+function FieldEditor({ field, allFields, onUpdate, onUpdateConfig, onClose }) {
+  if (!field) return null;
+
+  const hasOpts = field.FieldType === 2 || field.FieldType === 4;
+  const hasLen = field.FieldType === 1;
+  const hasVal = field.FieldType === 6;
+  const otherFields = allFields.filter(f => f.Id !== field.Id);
+
+  const addOption = () => {
+    const opts = [].concat(field.Config?.Options || [], [{ Value: "", Label: "" }]);
+    onUpdateConfig(field.Id, { Options: opts });
+  };
+  const updateOption = (idx, key, val) => {
+    const opts = (field.Config?.Options || []).map((o, i) => i === idx ? Object.assign({}, o, { [key]: val }) : o);
+    onUpdateConfig(field.Id, { Options: opts });
+  };
+  const removeOption = (idx) => {
+    onUpdateConfig(field.Id, { Options: (field.Config?.Options || []).filter((_, i) => i !== idx) });
+  };
+  const addValidation = () => {
+    const rules = [].concat(field.Config?.ValidationRules || [], [{ Type: 0, ErrorMessage: "" }]);
+    onUpdateConfig(field.Id, { ValidationRules: rules });
+  };
+  const updateValidation = (idx, updates) => {
+    const rules = (field.Config?.ValidationRules || []).map((r, i) => i === idx ? Object.assign({}, r, updates) : r);
+    onUpdateConfig(field.Id, { ValidationRules: rules });
+  };
+  const removeValidation = (idx) => {
+    onUpdateConfig(field.Id, { ValidationRules: (field.Config?.ValidationRules || []).filter((_, i) => i !== idx) });
+  };
+  const setDependency = (parentId) => {
+    if (!parentId) { onUpdate(field.Id, { DependsOn: undefined }); }
+    else { onUpdate(field.Id, { DependsOn: { FieldId: parentId, DefaultVisible: false, Rules: {} } }); }
+  };
+  const addDepRule = () => {
+    const dep = field.DependsOn || { FieldId: "", DefaultVisible: false, Rules: {} };
+    const rules = Object.assign({}, dep.Rules, { "": { Visible: true, Required: false } });
+    onUpdate(field.Id, { DependsOn: Object.assign({}, dep, { Rules: rules }) });
+  };
+  const updateDepRule = (oldKey, newKey, ruleUpdates) => {
+    const rules = Object.assign({}, field.DependsOn?.Rules);
+    if (oldKey !== newKey) delete rules[oldKey];
+    rules[newKey] = Object.assign({}, rules[newKey] || rules[oldKey] || {}, ruleUpdates);
+    onUpdate(field.Id, { DependsOn: Object.assign({}, field.DependsOn, { Rules: rules }) });
+  };
+  const removeDepRule = (key) => {
+    const rules = Object.assign({}, field.DependsOn?.Rules);
+    delete rules[key];
+    onUpdate(field.Id, { DependsOn: Object.assign({}, field.DependsOn, { Rules: rules }) });
+  };
+
+  const inp = { width: "100%", background: C.bg, border: "1px solid " + C.border, color: C.text, padding: "8px 10px", borderRadius: 6, fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
+  const sel = Object.assign({}, inp);
+
+  return React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100%", animation: "slideIn 0.2s ease" } },
+    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid " + C.border } },
+      React.createElement("h3", { style: { margin: 0, fontSize: 16, fontWeight: 700, color: C.accent } }, "Alan Düzenle"),
+      React.createElement("button", { style: { background: "none", border: "none", color: C.text2, fontSize: 18, cursor: "pointer" }, onClick: onClose }, "✕")
+    ),
+    React.createElement("div", { style: { flex: 1, overflowY: "auto", padding: "16px 20px" } },
+      // Basic
+      React.createElement(Section, { title: "Temel Bilgiler" },
+        React.createElement(Label, { text: "Field ID *" }),
+        React.createElement("input", { style: inp, value: field.Id, onChange: e => onUpdate(field.Id, { Id: e.target.value }) }),
+        React.createElement(Label, { text: "Label *" }),
+        React.createElement("input", { style: inp, value: field.Label || "", onChange: e => onUpdate(field.Id, { Label: e.target.value }), placeholder: "Alan başlığı" }),
+        React.createElement(Label, { text: "Field Type *" }),
+        React.createElement("select", { style: sel, value: field.FieldType, onChange: e => {
+          const t = parseInt(e.target.value);
+          onUpdate(field.Id, { FieldType: t });
+          const cu = {};
+          if (t !== 2 && t !== 4) cu.Options = undefined;
+          if (t !== 1) { cu.MinLength = undefined; cu.MaxLength = undefined; cu.Mask = undefined; }
+          if (t !== 6) { cu.MinValue = undefined; cu.MaxValue = undefined; }
+          if (Object.keys(cu).length) onUpdateConfig(field.Id, cu);
+        }},
+          FIELD_TYPES.map(t => React.createElement("option", { key: t.value, value: t.value }, t.icon + " " + t.label))
+        ),
+        React.createElement(Label, { text: "Placeholder" }),
+        React.createElement("input", { style: inp, value: field.Config?.Placeholder || "", onChange: e => onUpdateConfig(field.Id, { Placeholder: e.target.value }) }),
+        React.createElement("div", { style: { display: "flex", gap: 16, marginTop: 10 } },
+          React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer" } },
+            React.createElement("input", { type: "checkbox", checked: field.Config?.Visible !== false, onChange: e => onUpdateConfig(field.Id, { Visible: e.target.checked }) }), "Visible"),
+          React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer" } },
+            React.createElement("input", { type: "checkbox", checked: field.Config?.Enabled !== false, onChange: e => onUpdateConfig(field.Id, { Enabled: e.target.checked }) }), "Enabled"),
+          React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer" } },
+            React.createElement("input", { type: "checkbox", checked: !!field.Config?.Required, onChange: e => onUpdateConfig(field.Id, { Required: e.target.checked }) }), "Required")
+        )
+      ),
+
+      // Length
+      hasLen && React.createElement(Section, { title: "Uzunluk Ayarları" },
+        React.createElement("div", { style: { display: "flex", gap: 8 } },
+          React.createElement("div", { style: { flex: 1 } },
+            React.createElement(Label, { text: "Min Length" }),
+            React.createElement("input", { style: inp, type: "number", value: field.Config?.MinLength || "", onChange: e => onUpdateConfig(field.Id, { MinLength: e.target.value ? parseInt(e.target.value) : undefined }) })
+          ),
+          React.createElement("div", { style: { flex: 1 } },
+            React.createElement(Label, { text: "Max Length" }),
+            React.createElement("input", { style: inp, type: "number", value: field.Config?.MaxLength || "", onChange: e => onUpdateConfig(field.Id, { MaxLength: e.target.value ? parseInt(e.target.value) : undefined }) })
+          )
+        ),
+        React.createElement(Label, { text: "Mask" }),
+        React.createElement("input", { style: inp, value: field.Config?.Mask || "", onChange: e => onUpdateConfig(field.Id, { Mask: e.target.value }), placeholder: "### ### ## ##" }),
+        React.createElement(Label, { text: "Keyboard Type" }),
+        React.createElement("select", { style: sel, value: field.Config?.KeyboardType || 0, onChange: e => onUpdateConfig(field.Id, { KeyboardType: parseInt(e.target.value) }) },
+          KEYBOARD_TYPES.map(k => React.createElement("option", { key: k.value, value: k.value }, k.label))
+        )
+      ),
+
+      // Value
+      hasVal && React.createElement(Section, { title: "Değer Ayarları" },
+        React.createElement("div", { style: { display: "flex", gap: 8 } },
+          React.createElement("div", { style: { flex: 1 } },
+            React.createElement(Label, { text: "Min Value" }),
+            React.createElement("input", { style: inp, type: "number", step: "0.01", value: field.Config?.MinValue || "", onChange: e => onUpdateConfig(field.Id, { MinValue: e.target.value ? parseFloat(e.target.value) : undefined }) })
+          ),
+          React.createElement("div", { style: { flex: 1 } },
+            React.createElement(Label, { text: "Max Value" }),
+            React.createElement("input", { style: inp, type: "number", step: "0.01", value: field.Config?.MaxValue || "", onChange: e => onUpdateConfig(field.Id, { MaxValue: e.target.value ? parseFloat(e.target.value) : undefined }) })
+          )
+        )
+      ),
+
+      // Options
+      hasOpts && React.createElement(Section, { title: "Options (" + (field.Config?.Options?.length || 0) + ")" },
+        (field.Config?.Options || []).map((opt, idx) =>
+          React.createElement("div", { key: idx, style: { display: "flex", gap: 6, marginBottom: 6, alignItems: "center" } },
+            React.createElement("input", { style: Object.assign({}, inp, { flex: 1 }), value: opt.Value, onChange: e => updateOption(idx, "Value", e.target.value), placeholder: "Value" }),
+            React.createElement("input", { style: Object.assign({}, inp, { flex: 1 }), value: opt.Label, onChange: e => updateOption(idx, "Label", e.target.value), placeholder: "Label" }),
+            React.createElement("button", { style: { background: C.danger + "20", border: "none", color: C.danger, width: 24, height: 24, borderRadius: 4, cursor: "pointer", fontSize: 12, flexShrink: 0 }, onClick: () => removeOption(idx) }, "✕")
+          )
+        ),
+        React.createElement("button", { style: { background: "none", border: "1px dashed " + C.accent + "60", color: C.accent, padding: "6px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, marginTop: 6 }, onClick: addOption }, "+ Option Ekle")
+      ),
+
+      // Validation
+      React.createElement(Section, { title: "Validation (" + (field.Config?.ValidationRules?.length || 0) + ")" },
+        (field.Config?.ValidationRules || []).map((rule, idx) =>
+          React.createElement("div", { key: idx, style: { background: C.bg, borderRadius: 6, padding: 10, marginBottom: 6, border: "1px solid " + C.border } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 6 } },
+              React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: C.text2, textTransform: "uppercase" } }, "Rule " + (idx + 1)),
+              React.createElement("button", { style: { background: C.danger + "20", border: "none", color: C.danger, width: 24, height: 24, borderRadius: 4, cursor: "pointer", fontSize: 12 }, onClick: () => removeValidation(idx) }, "✕")
+            ),
+            React.createElement("select", { style: sel, value: rule.Type || 0, onChange: e => updateValidation(idx, { Type: parseInt(e.target.value) }) },
+              VALIDATION_TYPES.map(v => React.createElement("option", { key: v.value, value: v.value }, v.label))
+            ),
+            React.createElement("input", { style: Object.assign({}, inp, { marginTop: 6 }), value: rule.ErrorMessage || "", onChange: e => updateValidation(idx, { ErrorMessage: e.target.value }), placeholder: "Hata mesajı" }),
+            rule.Type === 0 && React.createElement("input", { style: Object.assign({}, inp, { marginTop: 6 }), value: rule.Pattern || "", onChange: e => updateValidation(idx, { Pattern: e.target.value }), placeholder: "Regex pattern" })
+          )
+        ),
+        React.createElement("button", { style: { background: "none", border: "1px dashed " + C.accent + "60", color: C.accent, padding: "6px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, marginTop: 6 }, onClick: addValidation }, "+ Validation Ekle")
+      ),
+
+      // Dependency
+      React.createElement(Section, { title: "Dependency" },
+        otherFields.length === 0
+          ? React.createElement("div", { style: { color: C.text2, fontSize: 12, padding: 8 } }, "En az 2 alan gerekli")
+          : React.createElement(React.Fragment, null,
+              React.createElement(Label, { text: "Parent Alan" }),
+              React.createElement("select", { style: sel, value: field.DependsOn?.FieldId || "", onChange: e => setDependency(e.target.value || null) },
+                React.createElement("option", { value: "" }, "Yok"),
+                otherFields.map(f => React.createElement("option", { key: f.Id, value: f.Id }, f.Label || f.Id))
+              ),
+              field.DependsOn?.FieldId && React.createElement(React.Fragment, null,
+                React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer", marginTop: 8 } },
+                  React.createElement("input", { type: "checkbox", checked: !!field.DependsOn?.DefaultVisible, onChange: e => onUpdate(field.Id, { DependsOn: Object.assign({}, field.DependsOn, { DefaultVisible: e.target.checked }) }) }), "Default Visible"
+                ),
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, fontSize: 12, color: C.text2 } },
+                  React.createElement("span", null, "Rules (" + Object.keys(field.DependsOn?.Rules || {}).length + ")"),
+                  React.createElement("button", { style: { background: "none", border: "1px dashed " + C.accent + "60", color: C.accent, padding: "4px 10px", borderRadius: 6, fontSize: 10, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }, onClick: addDepRule }, "+ Rule")
+                ),
+                Object.entries(field.DependsOn?.Rules || {}).map(([key, rule]) =>
+                  React.createElement("div", { key: key, style: { background: C.bg, borderRadius: 6, padding: 10, marginTop: 6, border: "1px solid " + C.border } },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 6, alignItems: "center" } },
+                      React.createElement("input", { style: Object.assign({}, inp, { maxWidth: 160 }), value: key, onChange: e => updateDepRule(key, e.target.value, rule), placeholder: "Parent değeri" }),
+                      React.createElement("button", { style: { background: C.danger + "20", border: "none", color: C.danger, width: 24, height: 24, borderRadius: 4, cursor: "pointer", fontSize: 12 }, onClick: () => removeDepRule(key) }, "✕")
+                    ),
+                    React.createElement("div", { style: { display: "flex", gap: 16, marginTop: 6 } },
+                      React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer" } },
+                        React.createElement("input", { type: "checkbox", checked: rule.Visible !== false, onChange: e => updateDepRule(key, key, Object.assign({}, rule, { Visible: e.target.checked })) }), "Visible"),
+                      React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer" } },
+                        React.createElement("input", { type: "checkbox", checked: !!rule.Required, onChange: e => updateDepRule(key, key, Object.assign({}, rule, { Required: e.target.checked })) }), "Required"),
+                      React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer" } },
+                        React.createElement("input", { type: "checkbox", checked: rule.Enabled !== false, onChange: e => updateDepRule(key, key, Object.assign({}, rule, { Enabled: e.target.checked })) }), "Enabled")
+                    )
+                  )
+                )
+              )
+            )
+      )
+    )
+  );
+}
+
+function App() {
+  const [activeTab, setActiveTab] = useState("builder");
+  const [sections, setSections] = useState([{ Id: "main", Title: "FORM", Order: 1 }]);
+  const [fields, setFields] = useState([]);
+  const [jsonText, setJsonText] = useState("");
+  const [jsonError, setJsonError] = useState(null);
+  const [editingField, setEditingField] = useState(null);
+  const [shareUrl, setShareUrl] = useState(null);
+  const [showQR, setShowQR] = useState(false);
+  const [dragIdx, setDragIdx] = useState(null);
+  const [dragOverIdx, setDragOverIdx] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    const shared = parseShareUrl();
+    if (shared) {
+      if (shared.Sections) setSections(shared.Sections);
+      if (shared.FormFields) setFields(shared.FormFields);
+      setJsonText(JSON.stringify(shared, null, 2));
+      showToastMsg("Paylaşılan form yüklendi!");
+    }
+  }, []);
+
+  const showToastMsg = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+
+  const buildJson = useCallback(() => JSON.stringify({ Sections: sections, FormFields: fields }, null, 2), [sections, fields]);
+
+  useEffect(() => { if (activeTab === "json") setJsonText(buildJson()); }, [activeTab, buildJson]);
+
+  const applyJson = () => {
+    try {
+      const p = JSON.parse(jsonText);
+      if (p.Sections) setSections(p.Sections);
+      if (p.FormFields) setFields(p.FormFields);
+      setJsonError(null);
+      showToastMsg("JSON uygulandı!");
+    } catch (e) { setJsonError(e.message); }
+  };
+
+  const addField = () => {
+    const f = createEmptyField(fields.length + 1);
+    setFields([...fields, f]);
+    setEditingField(f.Id);
+  };
+
+  const updateField = (id, updates) => setFields(fs => fs.map(f => f.Id === id ? Object.assign({}, f, updates) : f));
+  const updateFieldConfig = (id, cu) => setFields(fs => fs.map(f => f.Id !== id ? f : Object.assign({}, f, { Config: Object.assign({}, f.Config, cu) })));
+  const removeField = (id) => { setFields(fs => fs.filter(f => f.Id !== id).map((f, i) => Object.assign({}, f, { Order: i + 1 }))); if (editingField === id) setEditingField(null); };
+  const duplicateField = (id) => {
+    const src = fields.find(f => f.Id === id);
+    if (!src) return;
+    const dup = JSON.parse(JSON.stringify(src));
+    dup.Id = "field_" + Date.now().toString(36);
+    dup.Order = fields.length + 1;
+    dup.Label = (src.Label || "") + " (kopya)";
+    setFields([...fields, dup]);
+    showToastMsg("Alan kopyalandı!");
+  };
+
+  const handleDragStart = (idx) => setDragIdx(idx);
+  const handleDragOver = (e, idx) => { e.preventDefault(); setDragOverIdx(idx); };
+  const handleDragEnd = () => { setDragIdx(null); setDragOverIdx(null); };
+  const handleDrop = (idx) => {
+    if (dragIdx === null || dragIdx === idx) return;
+    const u = [...fields]; const [m] = u.splice(dragIdx, 1); u.splice(idx, 0, m);
+    setFields(u.map((f, i) => Object.assign({}, f, { Order: i + 1 }))); setDragIdx(null); setDragOverIdx(null);
+  };
+
+  const handleShare = () => {
+    const json = { Sections: sections, FormFields: fields };
+    const url = generateShareUrl(json);
+    setShareUrl(url); setShowQR(true);
+    if (url) navigator.clipboard?.writeText(url).then(() => showToastMsg("Link kopyalandı!"));
+  };
+
+  const loadTemplate = (tmpl) => { setSections(tmpl.json.Sections); setFields(tmpl.json.FormFields); setEditingField(null); showToastMsg('"' + tmpl.name + '" yüklendi!'); };
+
+  const fieldTypeInfo = (val) => FIELD_TYPES.find(t => t.value === val) || FIELD_TYPES[0];
+
+  const getDependencies = () => fields.filter(f => f.DependsOn?.FieldId).map(f => ({
+    from: f.DependsOn.FieldId, to: f.Id,
+    fromLabel: (fields.find(x => x.Id === f.DependsOn.FieldId)?.Label) || f.DependsOn.FieldId,
+    toLabel: f.Label || f.Id,
+    rules: f.DependsOn.Rules ? Object.keys(f.DependsOn.Rules) : [],
+    defaultVisible: f.DependsOn.DefaultVisible,
+  }));
+
+  const tabs = [
+    { id: "builder", label: "🔨 Builder", count: fields.length },
+    { id: "json", label: "{ } JSON" },
+    { id: "graph", label: "🔗 Dependencies", count: getDependencies().length },
+    { id: "templates", label: "📦 Templates" },
+  ];
+
+  const chipStyle = (bg, fg) => ({ padding: "1px 6px", borderRadius: 4, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, background: bg, color: fg });
+
+  return React.createElement("div", { style: { minHeight: "100vh", display: "flex", flexDirection: "column" } },
+    // Header
+    React.createElement("header", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", borderBottom: "1px solid " + C.border, background: C.surface } },
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+        React.createElement("span", { style: { fontSize: 28 } }, "⚡"),
+        React.createElement("h1", { style: { fontSize: 18, fontWeight: 700, margin: 0, letterSpacing: "-0.5px" } }, "Dynamic Form Builder"),
+        React.createElement("span", { style: { background: C.accent2, color: "#fff", padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 } }, "Halkbank")
+      ),
+      React.createElement("div", { style: { display: "flex", gap: 8 } },
+        React.createElement("button", { style: { background: C.accent, color: C.bg, border: "none", padding: "8px 16px", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }, onClick: handleShare }, "📤 Paylaş & QR"),
+        React.createElement("button", { style: { background: C.surface2, color: C.text, border: "1px solid " + C.border, padding: "8px 16px", borderRadius: 6, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }, onClick: () => { navigator.clipboard?.writeText(buildJson()); showToastMsg("JSON kopyalandı!"); } }, "📋 Kopyala")
+      )
+    ),
+
+    // Tabs
+    React.createElement("nav", { style: { display: "flex", borderBottom: "1px solid " + C.border, background: C.surface, padding: "0 16px" } },
+      tabs.map(tab => React.createElement("button", { key: tab.id, style: Object.assign({ background: "none", border: "none", color: activeTab === tab.id ? C.accent : C.text2, padding: "12px 20px", fontSize: 13, cursor: "pointer", borderBottom: "2px solid " + (activeTab === tab.id ? C.accent : "transparent"), display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit", transition: "all 0.2s" }), onClick: () => setActiveTab(tab.id) },
+        tab.label,
+        tab.count != null && React.createElement("span", { style: { background: C.surface2, padding: "1px 6px", borderRadius: 8, fontSize: 10, fontWeight: 700 } }, tab.count)
+      ))
+    ),
+
+    // Content
+    React.createElement("div", { style: { flex: 1, overflow: "hidden" } },
+
+      // BUILDER
+      activeTab === "builder" && React.createElement("div", { style: { display: "flex", height: "calc(100vh - 120px)" } },
+        // Left: field list
+        React.createElement("div", { style: { width: 400, borderRight: "1px solid " + C.border, padding: 16, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 } },
+          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 } },
+            React.createElement("input", { style: { background: C.surface2, border: "1px solid " + C.border, color: C.accent, padding: "8px 12px", borderRadius: 6, fontSize: 14, fontWeight: 700, flex: 1, outline: "none", fontFamily: "inherit" }, value: sections[0]?.Title || "", onChange: e => setSections([Object.assign({}, sections[0], { Title: e.target.value })]), placeholder: "Section başlığı" }),
+            React.createElement("span", { style: { color: C.text2, fontSize: 12, marginLeft: 8, whiteSpace: "nowrap" } }, fields.length + " alan")
+          ),
+
+          fields.length === 0 && React.createElement("div", { style: { textAlign: "center", padding: "48px 16px" } },
+            React.createElement("div", { style: { fontSize: 48 } }, "📋"),
+            React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginTop: 12 } }, "Henüz alan eklenmedi"),
+            React.createElement("div", { style: { fontSize: 13, color: C.text2, marginTop: 4 } }, "Aşağıdaki butonu veya şablonları kullanın")
+          ),
+
+          fields.map((field, idx) => {
+            const info = fieldTypeInfo(field.FieldType);
+            const isActive = editingField === field.Id;
+            return React.createElement("div", {
+              key: field.Id, draggable: true,
+              onDragStart: () => handleDragStart(idx), onDragOver: e => handleDragOver(e, idx), onDragEnd: handleDragEnd, onDrop: () => handleDrop(idx),
+              style: Object.assign({ background: C.surface, border: "1px solid " + (isActive ? C.accent : dragOverIdx === idx ? C.accent2 : C.border), borderRadius: 8, padding: "10px 12px", cursor: "pointer", transition: "all 0.15s", opacity: dragIdx === idx ? 0.4 : 1, borderStyle: dragOverIdx === idx ? "dashed" : "solid" }, isActive ? { boxShadow: "0 0 0 1px " + C.accent + "40" } : {}),
+              onClick: () => setEditingField(isActive ? null : field.Id)
+            },
+              React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                React.createElement("span", { style: { color: C.text2, fontSize: 16, cursor: "grab" } }, "⠿"),
+                React.createElement("span", { style: { background: C.surface2, color: C.text2, width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 } }, field.Order),
+                React.createElement("span", { style: { fontSize: 18, flexShrink: 0 } }, info.icon),
+                React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                  React.createElement("div", { style: { fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, field.Label || "(İsimsiz)"),
+                  React.createElement("div", { style: { fontSize: 10, color: C.text2 } }, info.label + " · " + field.Id)
+                ),
+                React.createElement("div", { style: { display: "flex", gap: 4, flexShrink: 0 } },
+                  field.Config?.Required && React.createElement("span", { style: chipStyle(C.warning + "30", C.warning) }, "Required"),
+                  field.Config?.Visible === false && React.createElement("span", { style: chipStyle(C.text2 + "30", C.text2) }, "Hidden"),
+                  field.DependsOn && React.createElement("span", { style: chipStyle(C.blue + "30", C.blue) }, "Dep"),
+                  field.Config?.Options?.length > 0 && React.createElement("span", { style: chipStyle(C.accent2 + "30", C.accent2) }, field.Config.Options.length + " opt")
+                ),
+                React.createElement("div", { style: { display: "flex", gap: 2, flexShrink: 0 } },
+                  React.createElement("button", { style: { background: "none", border: "none", fontSize: 14, cursor: "pointer", padding: 4, opacity: 0.6 }, onClick: e => { e.stopPropagation(); duplicateField(field.Id); }, title: "Kopyala" }, "📑"),
+                  React.createElement("button", { style: { background: "none", border: "none", fontSize: 14, cursor: "pointer", padding: 4, opacity: 0.8 }, onClick: e => { e.stopPropagation(); removeField(field.Id); }, title: "Sil" }, "🗑")
+                )
+              )
+            );
+          }),
+
+          React.createElement("button", { style: { background: "none", border: "2px dashed " + C.accent + "60", color: C.accent, padding: 14, borderRadius: 8, fontSize: 14, cursor: "pointer", fontWeight: 600, fontFamily: "inherit", marginTop: 8 }, onClick: addField }, "+ Alan Ekle")
+        ),
+
+        // Right: editor
+        React.createElement("div", { style: { flex: 1, overflowY: "auto" } },
+          editingField
+            ? React.createElement(FieldEditor, { field: fields.find(f => f.Id === editingField), allFields: fields, onUpdate: updateField, onUpdateConfig: updateFieldConfig, onClose: () => setEditingField(null) })
+            : React.createElement("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", textAlign: "center", padding: 48 } },
+                React.createElement("div", { style: { fontSize: 48 } }, "👈"),
+                React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginTop: 12 } }, "Alan seçin veya ekleyin"),
+                React.createElement("div", { style: { fontSize: 13, color: C.text2, marginTop: 4 } }, "Soldaki listeden bir alana tıklayarak düzenlemeye başlayın")
+              )
+        )
+      ),
+
+      // JSON
+      activeTab === "json" && React.createElement("div", { style: { height: "calc(100vh - 120px)", display: "flex", flexDirection: "column", padding: 16 } },
+        React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 8, alignItems: "center" } },
+          React.createElement("button", { style: { background: C.surface2, border: "1px solid " + C.border, color: C.text, padding: "6px 14px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }, onClick: () => { try { setJsonText(JSON.stringify(JSON.parse(jsonText), null, 2)); showToastMsg("Formatlandı!"); } catch(e) { setJsonError(e.message); } } }, "✨ Formatla"),
+          React.createElement("button", { style: { background: C.surface2, border: "1px solid " + C.border, color: C.text, padding: "6px 14px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }, onClick: applyJson }, "▶ Uygula"),
+          React.createElement("button", { style: { background: C.surface2, border: "1px solid " + C.border, color: C.text, padding: "6px 14px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }, onClick: () => { navigator.clipboard?.writeText(jsonText); showToastMsg("Kopyalandı!"); } }, "📋 Kopyala"),
+          jsonError && React.createElement("span", { style: { color: C.danger, fontSize: 12, marginLeft: 8 } }, "⚠ " + jsonError)
+        ),
+        React.createElement("textarea", { style: { flex: 1, background: C.surface, border: "1px solid " + C.border, color: C.accent, padding: 16, borderRadius: 8, fontSize: 13, fontFamily: "'JetBrains Mono', monospace", resize: "none", outline: "none", lineHeight: 1.6, tabSize: 2 }, value: jsonText, onChange: e => { setJsonText(e.target.value); setJsonError(null); }, spellCheck: false, placeholder: "JSON yapıştırın..." })
+      ),
+
+      // GRAPH
+      activeTab === "graph" && React.createElement("div", { style: { padding: 24, overflowY: "auto", height: "calc(100vh - 120px)" } },
+        React.createElement("h3", { style: { margin: "0 0 20px", fontSize: 16, fontWeight: 700, color: C.accent } }, "Dependency Grafiği"),
+        getDependencies().length === 0
+          ? React.createElement("div", { style: { textAlign: "center", padding: 48 } },
+              React.createElement("div", { style: { fontSize: 48 } }, "🔗"),
+              React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginTop: 12 } }, "Dependency yok"),
+              React.createElement("div", { style: { fontSize: 13, color: C.text2, marginTop: 4 } }, "Field'lara DependsOn ekleyerek bağlantılar oluşturun")
+            )
+          : React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
+              getDependencies().map((dep, i) =>
+                React.createElement("div", { key: i, style: { background: C.surface, border: "1px solid " + C.border, borderRadius: 12, padding: 20 } },
+                  React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 16, justifyContent: "center" } },
+                    React.createElement("div", { style: { background: C.surface2, borderRadius: 10, padding: "14px 20px", textAlign: "center", minWidth: 130, border: "1px solid " + C.border } },
+                      React.createElement("div", { style: { fontSize: 24 } }, "📋"),
+                      React.createElement("div", { style: { fontWeight: 700, fontSize: 14, marginTop: 4 } }, dep.fromLabel),
+                      React.createElement("div", { style: { fontSize: 10, color: C.text2, marginTop: 2 } }, dep.from)
+                    ),
+                    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4 } },
+                      React.createElement("div", { style: { width: 40, height: 2, background: "linear-gradient(90deg, " + C.accent2 + ", " + C.accent + ")" } }),
+                      React.createElement("div", { style: { color: C.accent, fontSize: 14 } }, "▶")
+                    ),
+                    React.createElement("div", { style: { background: C.surface2, borderRadius: 10, padding: "14px 20px", textAlign: "center", minWidth: 130, border: "1px solid " + C.border } },
+                      React.createElement("div", { style: { fontSize: 24 } }, "🎯"),
+                      React.createElement("div", { style: { fontWeight: 700, fontSize: 14, marginTop: 4 } }, dep.toLabel),
+                      React.createElement("div", { style: { fontSize: 10, color: C.text2, marginTop: 2 } }, dep.to)
+                    )
+                  ),
+                  React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", justifyContent: "center" } },
+                    React.createElement("span", { style: { fontSize: 11, color: C.text2, padding: "3px 8px", background: C.surface2, borderRadius: 4 } }, "Default: " + (dep.defaultVisible ? "Visible" : "Hidden")),
+                    dep.rules.map(r => React.createElement("span", { key: r, style: { fontSize: 11, color: C.accent, padding: "3px 8px", background: C.accent + "15", borderRadius: 4, border: "1px solid " + C.accent + "30" } }, '"' + r + '"'))
+                  )
+                )
+              )
+            )
+      ),
+
+      // TEMPLATES
+      activeTab === "templates" && React.createElement("div", { style: { padding: 24, overflowY: "auto", height: "calc(100vh - 120px)" } },
+        React.createElement("h3", { style: { margin: "0 0 20px", fontSize: 16, fontWeight: 700, color: C.accent } }, "Hazır Şablonlar"),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 } },
+          TEMPLATES.map((tmpl, i) =>
+            React.createElement("div", { key: i, style: { background: C.surface, border: "1px solid " + C.border, borderRadius: 12, padding: 20, cursor: "pointer", transition: "all 0.2s" }, onClick: () => loadTemplate(tmpl) },
+              React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginBottom: 4 } }, tmpl.name),
+              React.createElement("div", { style: { fontSize: 11, color: C.text2, marginBottom: 12 } }, tmpl.desc || (tmpl.json.FormFields.length + " alan")),
+              React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 } },
+                tmpl.json.FormFields.map(f => React.createElement("span", { key: f.Id, style: { fontSize: 11, padding: "3px 8px", background: C.surface2, borderRadius: 4, color: C.text } }, fieldTypeInfo(f.FieldType).icon + " " + f.Label))
+              ),
+              React.createElement("button", { style: { background: C.accent, color: C.bg, border: "none", padding: "8px 16px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" } }, "Yükle →")
+            )
+          )
+        )
+      )
+    ),
+
+    // QR Modal
+    showQR && shareUrl && React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(8px)" }, onClick: () => setShowQR(false) },
+      React.createElement("div", { style: { background: C.surface, borderRadius: 16, padding: 32, textAlign: "center", maxWidth: 420, width: "90%", border: "1px solid " + C.border }, onClick: e => e.stopPropagation() },
+        React.createElement("h3", { style: { margin: "0 0 8px", fontSize: 20, color: C.accent } }, "📱 QR ile Paylaş"),
+        React.createElement("p", { style: { margin: "0 0 20px", fontSize: 13, color: C.text2 } }, "Bu QR kodu Android uygulamasında okutarak formu test edin"),
+        React.createElement("img", { src: generateQR(shareUrl, 250), alt: "QR", style: { width: 250, height: 250, borderRadius: 12, marginBottom: 20 } }),
+        React.createElement("div", { style: { display: "flex", gap: 4, marginBottom: 16 } },
+          React.createElement("input", { style: { flex: 1, background: C.bg, border: "1px solid " + C.border, color: C.accent, padding: "8px 10px", borderRadius: 6, fontSize: 11, outline: "none", fontFamily: "inherit" }, value: shareUrl, readOnly: true, onClick: e => e.target.select() }),
+          React.createElement("button", { style: { background: C.surface2, border: "1px solid " + C.border, padding: 8, borderRadius: 6, cursor: "pointer", fontSize: 14 }, onClick: () => { navigator.clipboard?.writeText(shareUrl); showToastMsg("Kopyalandı!"); } }, "📋")
+        ),
+        React.createElement("button", { style: { background: C.surface2, border: "1px solid " + C.border, color: C.text, padding: "8px 24px", borderRadius: 6, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }, onClick: () => setShowQR(false) }, "Kapat")
+      )
+    ),
+
+    // Toast
+    toast && React.createElement("div", { style: { position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: C.accent, color: C.bg, padding: "10px 24px", borderRadius: 8, fontSize: 13, fontWeight: 700, zIndex: 1001, animation: "fadeIn 0.3s", fontFamily: "inherit" } }, toast)
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+  </script>
+</body>
+</html>
