@@ -1,137 +1,47 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dynamic Form Builder — Halkbank</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Courier New', monospace; background: #0f0f1a; color: #e8e8f0; }
-    #root { min-height: 100vh; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
-    ::selection { background: #64ffda40; color: #64ffda; }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #1a1a2e; }
-    ::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: #64ffda40; }
-    input:focus, select:focus, textarea:focus { border-color: #64ffda !important; box-shadow: 0 0 0 1px #64ffda40; }
-  </style>
-  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dynamic Form Builder</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0f0f1a; overflow: hidden; }
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 </head>
 <body>
-  <div id="root"></div>
-  <script type="text/babel">
-const { useState, useCallback, useRef, useEffect } = React;
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useCallback, useRef, useEffect, useMemo } = React;
 
+
+// ═══════════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════════
 const FIELD_TYPES = [
-  { value: 1, label: "Input", icon: "✏️" },
-  { value: 2, label: "Dropdown", icon: "📋" },
-  { value: 3, label: "Checkbox", icon: "☑️" },
-  { value: 4, label: "RadioGroup", icon: "🔘" },
-  { value: 5, label: "DatePicker", icon: "📅" },
-  { value: 6, label: "AmountInput", icon: "💰" },
-  { value: 7, label: "InfoCard", icon: "ℹ️" },
-  { value: 8, label: "InfoText", icon: "📝" },
+  { value: 1, label: "Input", icon: "✏️", desc: "Metin girişi" },
+  { value: 2, label: "Dropdown", icon: "📋", desc: "Açılır liste" },
+  { value: 3, label: "Checkbox", icon: "☑️", desc: "Onay kutusu" },
+  { value: 4, label: "RadioGroup", icon: "🔘", desc: "Radio seçim" },
+  { value: 5, label: "DatePicker", icon: "📅", desc: "Tarih seçici" },
+  { value: 6, label: "AmountInput", icon: "💰", desc: "Tutar girişi" },
+  { value: 7, label: "InfoCard", icon: "ℹ️", desc: "Bilgi kartı" },
+  { value: 8, label: "InfoText", icon: "📝", desc: "Bilgi metni" },
 ];
-
 const KEYBOARD_TYPES = [
-  { value: 0, label: "Default" },
-  { value: 1, label: "Text" },
-  { value: 2, label: "Number" },
-  { value: 3, label: "NumberPassword" },
-  { value: 4, label: "Phone" },
-  { value: 5, label: "Email" },
+  { value: 0, label: "Varsayılan" }, { value: 1, label: "Metin" },
+  { value: 2, label: "Sayı" }, { value: 3, label: "Ondalık" },
+  { value: 4, label: "Telefon" }, { value: 5, label: "E-posta" },
 ];
-
 const VALIDATION_TYPES = [
-  { value: 0, label: "None (Regex)" },
-  { value: 1, label: "TCKN" },
-  { value: 2, label: "VKN" },
-  { value: 3, label: "IBAN" },
-  { value: 4, label: "Email" },
-  { value: 5, label: "Phone" },
+  { value: 0, label: "Yok (Regex)" }, { value: 1, label: "TCKN" },
+  { value: 2, label: "VKN" }, { value: 3, label: "IBAN" },
+  { value: 4, label: "E-posta" }, { value: 5, label: "Telefon" },
 ];
-
-const TEMPLATES = [
-  {
-    name: "Basit Input",
-    desc: "Ad Soyad + Telefon",
-    json: {
-      Sections: [{ Id: "main", Title: "TEMEL BİLGİLER", Order: 1 }],
-      FormFields: [
-        { Id: "name", Order: 1, FieldType: 1, Label: "Ad Soyad", SectionId: "main", Config: { Visible: true, Enabled: true, Required: true, MinLength: 3, MaxLength: 50, Placeholder: "Adınızı giriniz", KeyboardType: 1 } },
-        { Id: "phone", Order: 2, FieldType: 1, Label: "Telefon", SectionId: "main", Config: { Visible: true, Enabled: true, Required: true, MinLength: 10, MaxLength: 10, Placeholder: "5XX XXX XX XX", KeyboardType: 4, Mask: "### ### ## ##" } },
-      ],
-    },
-  },
-  {
-    name: "Dropdown → Input Dependency",
-    desc: "Kimlik tipi seçimine göre input kuralları değişir",
-    json: {
-      Sections: [{ Id: "identity", Title: "KİMLİK BİLGİLERİ", Order: 1 }],
-      FormFields: [
-        { Id: "id_type", Order: 1, FieldType: 2, Label: "Kimlik Tipi", SectionId: "identity", Config: { Visible: true, Enabled: true, Required: true, Options: [{ Value: "tckn", Label: "TCKN" }, { Value: "vkn", Label: "VKN" }, { Value: "passport", Label: "Pasaport" }] } },
-        { Id: "id_number", Order: 2, FieldType: 1, Label: "Kimlik Numarası", SectionId: "identity", Config: { Visible: true, Enabled: true, Required: true, MinLength: 11, MaxLength: 11, Placeholder: "TCKN giriniz", KeyboardType: 2 }, DependsOn: { FieldId: "id_type", DefaultVisible: true, Rules: { tckn: { MinLength: 11, MaxLength: 11, Placeholder: "11 haneli TCKN", ValidationRules: [{ Type: 1, ErrorMessage: "Geçerli TCKN giriniz" }] }, vkn: { MinLength: 10, MaxLength: 10, Placeholder: "10 haneli VKN", ValidationRules: [{ Type: 2, ErrorMessage: "Geçerli VKN giriniz" }] }, passport: { MinLength: 6, MaxLength: 9, Placeholder: "Pasaport No", KeyboardType: 1 } } } },
-      ],
-    },
-  },
-  {
-    name: "İŞKUR Ödeme",
-    desc: "Borç türüne göre tahakkuk veya taksit alanı açılır",
-    json: {
-      Sections: [{ Id: "payment", Title: "ÖDEME BİLGİLERİ", Order: 1 }],
-      FormFields: [
-        { Id: "debt_type", Order: 1, FieldType: 2, Label: "Borç Türü", SectionId: "payment", Config: { Visible: true, Enabled: true, Required: true, Options: [{ Value: "Tahakkuk Ödemesi", Label: "Tahakkuk" }, { Value: "Taksit", Label: "Taksit" }] } },
-        { Id: "tckn", Order: 2, FieldType: 1, Label: "TCKN-VKN", SectionId: "payment", Config: { Visible: true, Enabled: true, Required: true, MinLength: 10, MaxLength: 11, KeyboardType: 3 } },
-        { Id: "tahakkuk_no", Order: 3, FieldType: 1, Label: "Tahakkuk No", SectionId: "payment", Config: { Visible: false, Required: false, KeyboardType: 3 }, DependsOn: { FieldId: "debt_type", DefaultVisible: false, Rules: { "Tahakkuk Ödemesi": { Visible: true, Required: false, MaxLength: 31 } } } },
-        { Id: "taksit", Order: 4, FieldType: 1, Label: "Taksit No", SectionId: "payment", Config: { Visible: false, Required: false, KeyboardType: 3 }, DependsOn: { FieldId: "debt_type", DefaultVisible: false, Rules: { Taksit: { Visible: true, Required: true, MaxLength: 31 } } } },
-      ],
-    },
-  },
-  {
-    name: "Chained Dependencies",
-    desc: "3 seviye zincirleme dependency: Kimlik → Ülke → Detay",
-    json: {
-      Sections: [{ Id: "identity", Title: "KİMLİK BİLGİLERİ", Order: 1 }],
-      FormFields: [
-        { Id: "id_type", Order: 1, FieldType: 2, Label: "Kimlik Tipi", SectionId: "identity", Config: { Visible: true, Required: true, Options: [{ Value: "tckn", Label: "TCKN" }, { Value: "passport", Label: "Pasaport" }] } },
-        { Id: "passport_country", Order: 2, FieldType: 2, Label: "Pasaport Ülkesi", SectionId: "identity", Config: { Visible: false, Required: false, Options: [{ Value: "de", Label: "Almanya" }, { Value: "us", Label: "ABD" }, { Value: "other", Label: "Diğer" }] }, DependsOn: { FieldId: "id_type", DefaultVisible: false, Rules: { passport: { Visible: true, Required: true } } } },
-        { Id: "other_country", Order: 3, FieldType: 1, Label: "Ülke Adı", SectionId: "identity", Config: { Visible: false, Required: false, MinLength: 2, MaxLength: 50, Placeholder: "Ülke adını giriniz" }, DependsOn: { FieldId: "passport_country", DefaultVisible: false, Rules: { other: { Visible: true, Required: true } } } },
-      ],
-    },
-  },
-];
-
-const createEmptyField = (order) => ({
-  Id: "field_" + Date.now().toString(36),
-  Order: order,
-  FieldType: 1,
-  Label: "",
-  SectionId: "main",
-  Config: { Visible: true, Enabled: true, Required: false },
-});
-
-const generateShareUrl = (json) => {
-  try {
-    const compressed = btoa(unescape(encodeURIComponent(JSON.stringify(json))));
-    return window.location.origin + window.location.pathname + "#" + compressed;
-  } catch(e) { return null; }
-};
-
-const parseShareUrl = () => {
-  try {
-    const hash = window.location.hash.slice(1);
-    if (!hash) return null;
-    return JSON.parse(decodeURIComponent(escape(atob(hash))));
-  } catch(e) { return null; }
-};
-
-const generateQR = (text, size) => {
-  return "https://api.qrserver.com/v1/create-qr-code/?size=" + size + "x" + size + "&data=" + encodeURIComponent(text) + "&bgcolor=1a1a2e&color=64ffda&format=svg";
-};
 
 const C = {
   bg: "#0f0f1a", surface: "#1a1a2e", surface2: "#222240", border: "#2a2a4a",
@@ -139,488 +49,1320 @@ const C = {
   danger: "#ff5252", warning: "#ffab40", success: "#69f0ae", blue: "#448aff",
 };
 
-function Label({ text }) {
-  const isReq = text.endsWith("*");
-  return React.createElement("label", { style: { display: "block", fontSize: 11, color: C.text2, marginTop: 10, marginBottom: 4, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.5 } },
-    isReq ? text.slice(0, -2) : text,
-    isReq && React.createElement("span", { style: { color: C.danger, marginLeft: 2 } }, "*")
+const BUILTIN_TEMPLATES = [
+  { name: "Basit Input", desc: "Ad Soyad + Telefon", builtin: true, json: { Sections: [{ Id: "main", Title: "TEMEL BİLGİLER", Order: 1 }], FormFields: [{ Id: "name", Order: 1, FieldType: 1, Label: "Ad Soyad", SectionId: "main", Config: { Visible: true, Enabled: true, Required: true, MinLength: 3, MaxLength: 50, Placeholder: "Adınızı giriniz", KeyboardType: 1 } }, { Id: "phone", Order: 2, FieldType: 1, Label: "Telefon", SectionId: "main", Config: { Visible: true, Enabled: true, Required: true, MinLength: 10, MaxLength: 10, Placeholder: "5XX XXX XX XX", KeyboardType: 4, Mask: "### ### ## ##" } }] } },
+  { name: "Dropdown → Input", desc: "Kimlik tipi bağımlılığı", builtin: true, json: { Sections: [{ Id: "identity", Title: "KİMLİK BİLGİLERİ", Order: 1 }], FormFields: [{ Id: "id_type", Order: 1, FieldType: 2, Label: "Kimlik Tipi", SectionId: "identity", Config: { Visible: true, Enabled: true, Required: true, Options: [{ Value: "tckn", Label: "TCKN" }, { Value: "vkn", Label: "VKN" }, { Value: "passport", Label: "Pasaport" }] } }, { Id: "id_number", Order: 2, FieldType: 1, Label: "Kimlik Numarası", SectionId: "identity", Config: { Visible: true, Enabled: true, Required: true, MinLength: 11, MaxLength: 11, Placeholder: "TCKN giriniz", KeyboardType: 2 }, DependsOn: { FieldId: "id_type", DefaultVisible: true, Rules: { tckn: { MinLength: 11, MaxLength: 11, Placeholder: "11 haneli TCKN" }, vkn: { MinLength: 10, MaxLength: 10, Placeholder: "10 haneli VKN" }, passport: { MinLength: 6, MaxLength: 9, Placeholder: "Pasaport No", KeyboardType: 1 } } } }] } },
+  { name: "İŞKUR Ödeme", desc: "Borç türüne göre alanlar", builtin: true, json: { Sections: [{ Id: "payment", Title: "ÖDEME BİLGİLERİ", Order: 1 }], FormFields: [{ Id: "infocard_01", Order: 0, FieldType: 7, Label: "İŞKUR", SectionId: "payment", Config: { Visible: true, Enabled: true, Placeholder: "Kurum" } }, { Id: "debt_type", Order: 1, FieldType: 2, Label: "Borç Türü", SectionId: "payment", Config: { Visible: true, Enabled: true, Required: true, Options: [{ Value: "Tahakkuk Ödemesi", Label: "Tahakkuk" }, { Value: "Taksit", Label: "Taksit" }] } }, { Id: "tckn", Order: 2, FieldType: 1, Label: "TCKN-VKN", SectionId: "payment", Config: { Visible: true, Enabled: true, Required: true, MinLength: 10, MaxLength: 11, KeyboardType: 3, ValidationRules: [{ Type: 0, Pattern: "^[0-9]{10,11}$", ErrorMessage: "Geçerli TCKN/VKN giriniz" }] } }, { Id: "tahakkuk_no", Order: 3, FieldType: 1, Label: "Tahakkuk No", SectionId: "payment", Config: { Visible: false, Required: false, KeyboardType: 3 }, DependsOn: { FieldId: "debt_type", DefaultVisible: false, Rules: { "Tahakkuk Ödemesi": { Visible: true, Required: false, MaxLength: 31 } } } }, { Id: "taksit", Order: 4, FieldType: 1, Label: "Taksit No", SectionId: "payment", Config: { Visible: false, Required: false, KeyboardType: 3 }, DependsOn: { FieldId: "debt_type", DefaultVisible: false, Rules: { Taksit: { Visible: true, Required: true, MaxLength: 31 } } } }] } },
+  { name: "Çoklu Section", desc: "Kimlik + Ödeme + İletişim", builtin: true, json: { Sections: [{ Id: "identity", Title: "KİMLİK BİLGİLERİ", Order: 1 }, { Id: "payment", Title: "ÖDEME BİLGİLERİ", Order: 2 }, { Id: "contact", Title: "İLETİŞİM", Order: 3 }], FormFields: [{ Id: "id_type", Order: 1, FieldType: 2, Label: "Kimlik Tipi", SectionId: "identity", Config: { Visible: true, Required: true, Options: [{ Value: "tckn", Label: "TCKN" }, { Value: "vkn", Label: "VKN" }] } }, { Id: "id_number", Order: 2, FieldType: 1, Label: "Kimlik No", SectionId: "identity", Config: { Visible: true, Required: true, MinLength: 10, MaxLength: 11, KeyboardType: 2 } }, { Id: "amount", Order: 3, FieldType: 6, Label: "Tutar", SectionId: "payment", Config: { Visible: true, KeyboardType: 3, Placeholder: "0,00" } }, { Id: "email", Order: 4, FieldType: 1, Label: "E-posta", SectionId: "contact", Config: { Visible: true, Required: false, Placeholder: "ornek@email.com", KeyboardType: 5 } }, { Id: "phone", Order: 5, FieldType: 1, Label: "Telefon", SectionId: "contact", Config: { Visible: true, Required: true, MinLength: 10, MaxLength: 10, KeyboardType: 4, Mask: "### ### ## ##" } }] } },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════
+const fieldTypeInfo = (v) => FIELD_TYPES.find((t) => t.value === v) || FIELD_TYPES[0];
+const loadCustomTemplates = () => { try { return JSON.parse(localStorage.getItem("dfb_templates") || "[]"); } catch { return []; } };
+const saveCustomTemplates = (t) => { try { localStorage.setItem("dfb_templates", JSON.stringify(t)); } catch {} };
+const generateShareUrl = (j) => { try { return `${location.origin}${location.pathname}#${btoa(unescape(encodeURIComponent(JSON.stringify(j))))}`; } catch { return null; } };
+const parseShareUrl = () => { try { const h = location.hash.slice(1); return h ? JSON.parse(decodeURIComponent(escape(atob(h)))) : null; } catch { return null; } };
+const generateQR = (t, s) => `https://api.qrserver.com/v1/create-qr-code/?size=${s}x${s}&data=${encodeURIComponent(t)}&bgcolor=0f0f1a&color=64ffda&format=svg`;
+const stripTypeFields = (o) => { if (Array.isArray(o)) return o.map(stripTypeFields); if (o && typeof o === "object") { const r = {}; for (const [k, v] of Object.entries(o)) { if (k === "__type" || k === "RawOptions") continue; r[k] = stripTypeFields(v); } return r; } return o; };
+const extractFormData = (raw) => { let o = raw; if (o.Data && Array.isArray(o.Data) && o.Data.length > 0) o = o.Data[0]; o = stripTypeFields(o); if (o.FormFields) return o; for (const v of Object.values(o)) { if (v && typeof v === "object" && v.FormFields) return stripTypeFields(v); } return o; };
+const createEmptyField = (order, ft = 1, sid = "main") => {
+  const b = { Id: `field_${Date.now().toString(36)}`, Order: order, FieldType: ft, Label: "", SectionId: sid, Config: { Visible: true, Enabled: true, Required: false } };
+  if (ft === 2 || ft === 4) b.Config.Options = [{ Value: "opt1", Label: "Seçenek 1" }, { Value: "opt2", Label: "Seçenek 2" }];
+  if (ft === 1) b.Config.KeyboardType = 1;
+  if (ft === 6) { b.Config.KeyboardType = 3; b.Config.Placeholder = "0,00"; }
+  return b;
+};
+
+// ═══════════════════════════════════════════════════════════════
+// JSON SYNTAX HIGHLIGHTER
+// ═══════════════════════════════════════════════════════════════
+const highlightJson = (text) => {
+  return text
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/("(?:[^"\\]|\\.)*")\s*:/g, '<span style="color:#7dd3fc">$1</span><span style="color:#4a4a6a">:</span>')
+    .replace(/:\s*("(?:[^"\\]|\\.)*")/g, ': <span style="color:#86efac">$1</span>')
+    .replace(/:\s*(-?\d+\.?\d*)/g, ': <span style="color:#fbbf24">$1</span>')
+    .replace(/:\s*(true|false)/g, ': <span style="color:#c084fc">$1</span>')
+    .replace(/:\s*(null)/g, ': <span style="color:#6b7394;font-style:italic">$1</span>')
+    .replace(/([{}\[\]])/g, '<span style="color:#6b7394">$1</span>');
+};
+
+// ═══════════════════════════════════════════════════════════════
+// JSON CODE EDITOR (line numbers + syntax highlighting + collapse)
+// ═══════════════════════════════════════════════════════════════
+function JsonCodeEditor({ value, onChange, error }) {
+  const taRef = useRef(null);
+  const gutRef = useRef(null);
+  const hlRef = useRef(null);
+  const [curLine, setCurLine] = useState(0);
+  const [collapsed, setCollapsed] = useState({}); // key: original line number of block start
+
+  // Parse block structure from ORIGINAL value (not display value)
+  const blockMap = useMemo(() => {
+    const lines = value.split("\n");
+    const map = {}; // startLine -> endLine
+    const stack = [];
+    lines.forEach((line, i) => {
+      if (/[{\[]\s*$/.test(line.trimEnd())) stack.push(i);
+      if (/^[\s]*[}\]]/.test(line) && stack.length) {
+        const start = stack.pop();
+        if (i - start > 1) map[start] = i; // only foldable if >1 line inside
+      }
+    });
+    return map;
+  }, [value]);
+
+  // Build display lines: skip collapsed ranges, insert placeholder
+  const { displayText, lineMap, collapseInfo } = useMemo(() => {
+    const srcLines = value.split("\n");
+    const outLines = [];
+    const lmap = []; // displayLineIdx -> originalLineIdx
+    const cinfo = {}; // displayLineIdx -> { hiddenCount, collapsed: true }
+    let i = 0;
+    while (i < srcLines.length) {
+      const blockEnd = blockMap[i];
+      if (blockEnd && collapsed[i]) {
+        // Show opening line + " ... N satır ... " + closing bracket
+        const openLine = srcLines[i];
+        const closeBracket = srcLines[blockEnd].trim();
+        const hiddenCount = blockEnd - i - 1;
+        const placeholder = `${openLine}  /* ··· ${hiddenCount} satır gizli ··· */  ${closeBracket}`;
+        outLines.push(placeholder);
+        lmap.push(i);
+        cinfo[outLines.length - 1] = { hiddenCount, start: i, end: blockEnd };
+        i = blockEnd + 1;
+      } else {
+        outLines.push(srcLines[i]);
+        lmap.push(i);
+        i++;
+      }
+    }
+    return { displayText: outLines.join("\n"), lineMap: lmap, collapseInfo: cinfo };
+  }, [value, collapsed, blockMap]);
+
+  const lineCount = useMemo(() => displayText.split("\n").length, [displayText]);
+  const highlighted = useMemo(() => highlightJson(displayText), [displayText]);
+
+  // Toggle collapse on an ORIGINAL line number
+  const toggleCollapse = (origLine) => {
+    setCollapsed(prev => {
+      const next = { ...prev };
+      if (next[origLine]) delete next[origLine];
+      else next[origLine] = true;
+      return next;
+    });
+  };
+
+  // When user edits the display text, map back to source
+  const handleChange = (newDisplayText) => {
+    // If nothing is collapsed, pass through directly
+    if (Object.keys(collapsed).length === 0) {
+      onChange(newDisplayText);
+      return;
+    }
+    // Uncollapse everything when user types (safest approach)
+    setCollapsed({});
+    onChange(newDisplayText);
+  };
+
+  // Scroll sync via transform
+  const syncScroll = useCallback(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    const top = ta.scrollTop;
+    const left = ta.scrollLeft;
+    if (gutRef.current) gutRef.current.style.transform = `translateY(${-top}px)`;
+    if (hlRef.current) hlRef.current.style.transform = `translate(${-left}px, ${-top}px)`;
+  }, []);
+
+  useEffect(() => { requestAnimationFrame(syncScroll); }, [displayText, syncScroll]);
+
+  const onKeyDown = (e) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const t = e.target, s = t.selectionStart, end = t.selectionEnd;
+      handleChange(t.value.substring(0, s) + "  " + t.value.substring(end));
+      requestAnimationFrame(() => { t.selectionStart = t.selectionEnd = s + 2; });
+    }
+  };
+
+  const updateCursor = () => {
+    if (taRef.current) {
+      setCurLine(taRef.current.value.substring(0, taRef.current.selectionStart).split("\n").length - 1);
+    }
+  };
+
+  const monoFont = "'JetBrains Mono', 'Fira Code', monospace";
+  const LH = 20;
+  const PAD = 12;
+  const GW = 54;
+
+  return (
+    <div style={{ position: "relative", display: "flex", flex: 1, overflow: "hidden", background: "#0a0a14" }}>
+      {/* Gutter */}
+      <div style={{ width: GW, flexShrink: 0, background: "#12121f", borderRight: "1px solid #1e1e36", overflow: "hidden", position: "relative" }}>
+        <div ref={gutRef} style={{ paddingTop: PAD, willChange: "transform" }}>
+          {Array.from({ length: lineCount }, (_, di) => {
+            const origLine = lineMap[di] ?? di;
+            const isFoldable = blockMap[origLine] != null;
+            const isFolded = !!collapsed[origLine];
+            const isCollapsedLine = !!collapseInfo[di];
+            return (
+              <div key={di} style={{
+                height: LH, lineHeight: `${LH}px`, paddingRight: 6, fontSize: 11,
+                color: di === curLine ? C.accent : isCollapsedLine ? C.accent2 : "#3a3a5a",
+                display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1,
+              }}>
+                {isFoldable && (
+                  <span
+                    onClick={() => toggleCollapse(origLine)}
+                    style={{ cursor: "pointer", fontSize: 8, color: isFolded ? C.accent : "#555", padding: "2px", userSelect: "none", lineHeight: 1 }}
+                  >
+                    {isFolded ? "▶" : "▼"}
+                  </span>
+                )}
+                <span style={{ minWidth: 20, textAlign: "right" }}>{origLine + 1}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Code area */}
+      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        {/* Highlight layer */}
+        <div ref={hlRef} style={{
+          position: "absolute", top: 0, left: 0,
+          paddingTop: PAD, paddingLeft: 16, paddingRight: 16,
+          font: `13px/${LH}px ${monoFont}`, whiteSpace: "pre",
+          pointerEvents: "none", tabSize: 2,
+          minWidth: "100%",
+          willChange: "transform",
+        }} dangerouslySetInnerHTML={{ __html: highlighted + "\n" }} />
+
+        {/* Textarea */}
+        <textarea
+          ref={taRef}
+          value={displayText}
+          onChange={(e) => handleChange(e.target.value)}
+          onScroll={syncScroll}
+          onKeyDown={onKeyDown}
+          onClick={updateCursor}
+          onKeyUp={updateCursor}
+          spellCheck={false}
+          style={{
+            position: "relative", zIndex: 1,
+            width: "100%", height: "100%",
+            background: "transparent", border: "none",
+            color: "transparent", caretColor: C.accent,
+            padding: `${PAD}px 16px`,
+            font: `13px/${LH}px ${monoFont}`,
+            resize: "none", outline: "none",
+            tabSize: 2, whiteSpace: "pre",
+            overflow: "auto",
+          }}
+        />
+      </div>
+
+      {/* Error bar */}
+      {error && (
+        <div style={{
+          position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 2,
+          background: C.danger + "18", borderTop: `1px solid ${C.danger}40`,
+          color: C.danger, padding: "6px 16px", fontSize: 11,
+        }}>
+          ⚠ {error}
+        </div>
+      )}
+    </div>
   );
 }
 
-function Section({ title, children, defaultOpen }) {
-  const [open, setOpen] = useState(defaultOpen !== false);
-  return React.createElement("div", { style: { marginBottom: 16, background: C.surface2, borderRadius: 8, overflow: "hidden", border: "1px solid " + C.border } },
-    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", cursor: "pointer", color: C.accent, fontWeight: 600, fontSize: 12, textTransform: "uppercase", letterSpacing: 1 }, onClick: () => setOpen(!open) },
-      React.createElement("span", null, title),
-      React.createElement("span", null, open ? "▾" : "▸")
-    ),
-    open && React.createElement("div", { style: { padding: "0 14px 14px" } }, children)
-  );
-}
+// ═══════════════════════════════════════════════════════════════
+// VALIDATORS (matching DynamicFormValidator.kt)
+// ═══════════════════════════════════════════════════════════════
+const validateTCKN = (v) => {
+  if (!/^\d{11}$/.test(v)) return false;
+  const d = v.split("").map(Number);
+  if (d[0] === 0) return false;
+  const s1 = d[0] + d[2] + d[4] + d[6] + d[8];
+  const s2 = d[1] + d[3] + d[5] + d[7];
+  if ((s1 * 7 - s2) % 10 !== d[9]) return false;
+  const total = d.slice(0, 10).reduce((a, b) => a + b, 0);
+  return total % 10 === d[10];
+};
+const validateVKN = (v) => {
+  if (!/^\d{10}$/.test(v)) return false;
+  const d = v.split("").map(Number);
+  let total = 0;
+  for (let i = 0; i < 9; i++) {
+    let t = (d[i] + (9 - i)) % 10;
+    t = (t * Math.pow(2, 9 - i)) % 9;
+    if (t === 0 && (d[i] + (9 - i)) % 10 !== 0) t = 9;
+    total += t;
+  }
+  return (10 - (total % 10)) % 10 === d[9];
+};
+const validateIBAN = (v) => {
+  const clean = v.replace(/\s/g, "").toUpperCase();
+  if (!/^TR\d{24}$/.test(clean)) return false;
+  const rearranged = clean.slice(4) + clean.slice(0, 4);
+  let numStr = "";
+  for (const ch of rearranged) { numStr += ch >= "A" && ch <= "Z" ? (ch.charCodeAt(0) - 55).toString() : ch; }
+  let rem = 0;
+  for (let i = 0; i < numStr.length; i++) { rem = (rem * 10 + parseInt(numStr[i])) % 97; }
+  return rem === 1;
+};
+const validateEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+const validatePhone = (v) => /^(5\d{9})$/.test(v.replace(/\s/g, ""));
 
-function FieldEditor({ field, allFields, onUpdate, onUpdateConfig, onClose }) {
+const runValidation = (value, field) => {
+  const cfg = field.Config || {};
+  const errors = [];
+  
+  if (cfg.Required && (!value || !value.trim())) {
+    errors.push(cfg.Errors?.Required || "Bu alan zorunludur");
+    return errors; // no need to check further
+  }
+  if (!value || !value.trim()) return errors;
+
+  const len = value.trim().length;
+  if (cfg.MinLength && len < cfg.MinLength) errors.push(cfg.Errors?.MinLength?.replace("{0}", cfg.MinLength) || `En az ${cfg.MinLength} karakter`);
+  if (cfg.MaxLength && len > cfg.MaxLength) errors.push(cfg.Errors?.MaxLength?.replace("{0}", cfg.MaxLength) || `En fazla ${cfg.MaxLength} karakter`);
+
+  (cfg.ValidationRules || []).forEach(rule => {
+    const t = rule.Type;
+    if (t === 0 && rule.Pattern) { try { if (!new RegExp(rule.Pattern).test(value)) errors.push(rule.ErrorMessage || "Geçersiz format"); } catch {} }
+    if (t === 1 && !validateTCKN(value)) errors.push(rule.ErrorMessage || "Geçerli TCKN giriniz");
+    if (t === 2 && !validateVKN(value)) errors.push(rule.ErrorMessage || "Geçerli VKN giriniz");
+    if (t === 3 && !validateIBAN(value)) errors.push(rule.ErrorMessage || "Geçerli IBAN giriniz");
+    if (t === 4 && !validateEmail(value)) errors.push(rule.ErrorMessage || "Geçerli e-posta giriniz");
+    if (t === 5 && !validatePhone(value)) errors.push(rule.ErrorMessage || "Geçerli telefon giriniz");
+  });
+  return errors;
+};
+
+// ═══════════════════════════════════════════════════════════════
+// MOBILE PREVIEW COMPONENT (interactive with validate button)
+// ═══════════════════════════════════════════════════════════════
+function FieldPreview({ field }) {
+  const [value, setValue] = useState("");
+  const [validated, setValidated] = useState(false);
+  const [selectedOpt, setSelectedOpt] = useState(null);
+  const [checked, setChecked] = useState(false);
+  const [radioVal, setRadioVal] = useState(null);
+
+  // Reset when field changes
+  useEffect(() => { setValue(""); setValidated(false); setSelectedOpt(null); setChecked(false); setRadioVal(null); }, [field?.Id, field?.FieldType]);
+
   if (!field) return null;
+  const ft = field.FieldType;
+  const cfg = field.Config || {};
+  const label = field.Label || "Alan Adı";
+  const ph = cfg.Placeholder || "";
+  const required = cfg.Required;
+  const disabled = cfg.Enabled === false;
+  const hidden = cfg.Visible === false;
+  
+  const errors = validated ? runValidation(value, field) : [];
+  const hasError = errors.length > 0;
+  const isValid = validated && !hasError;
 
+  const sans = "'Inter', system-ui, -apple-system, sans-serif";
+  const wrap = { background: "#fff", borderRadius: 12, padding: 16, opacity: hidden ? 0.4 : disabled ? 0.6 : 1, position: "relative" };
+  const labelStyle = { fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6, display: "flex", alignItems: "center", gap: 4, fontFamily: sans };
+  const baseBorder = hasError ? "#ef4444" : isValid ? "#22c55e" : "#d1d5db";
+  const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${baseBorder}`, fontSize: 14, color: "#111827", background: disabled ? "#f3f4f6" : "#fff", fontFamily: sans, outline: "none", boxSizing: "border-box", transition: "border-color 0.15s" };
+  const reqDot = required ? <span style={{ color: "#ef4444", fontSize: 14 }}>*</span> : null;
+  const charCount = value.length;
+  const maxLen = cfg.MaxLength;
+
+  const handleValidate = () => setValidated(true);
+  const handleReset = () => { setValue(""); setValidated(false); setSelectedOpt(null); setChecked(false); setRadioVal(null); };
+
+  const errorEl = hasError ? (
+    <div style={{ marginTop: 6 }}>
+      {errors.map((e, i) => (
+        <div key={i} style={{ fontSize: 11, color: "#ef4444", fontFamily: sans, display: "flex", alignItems: "center", gap: 4, marginTop: i > 0 ? 2 : 0 }}>
+          <span style={{ fontSize: 10 }}>⚠</span> {e}
+        </div>
+      ))}
+    </div>
+  ) : null;
+
+  const validEl = isValid ? (
+    <div style={{ fontSize: 11, color: "#22c55e", fontFamily: sans, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+      <span>✓</span> Geçerli
+    </div>
+  ) : null;
+
+  const counterEl = (ft === 1 || ft === 6) ? (
+    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 10, fontFamily: sans }}>
+      <span style={{ color: charCount > 0 && maxLen && charCount > maxLen ? "#ef4444" : "#9ca3af" }}>
+        {charCount}{maxLen ? ` / ${maxLen}` : ""} karakter
+      </span>
+      {cfg.MinLength && <span style={{ color: charCount > 0 && charCount < cfg.MinLength ? "#f59e0b" : "#9ca3af" }}>min: {cfg.MinLength}</span>}
+    </div>
+  ) : null;
+
+  // Validate + Reset buttons (shown for all interactive types)
+  const actionBar = (ft <= 6) ? (
+    <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+      <button onClick={handleValidate} style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: "none", background: "#3b82f6", color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: sans, cursor: "pointer", transition: "background 0.15s" }}>
+        ✓ Doğrula
+      </button>
+      <button onClick={handleReset} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff", color: "#6b7280", fontSize: 12, fontFamily: sans, cursor: "pointer" }}>
+        Temizle
+      </button>
+    </div>
+  ) : null;
+
+  if (hidden) {
+    return (
+      <div style={{ ...wrap, border: "1px dashed #d1d5db" }}>
+        <div style={{ textAlign: "center", color: "#9ca3af", fontSize: 12, fontFamily: sans }}>
+          👁️‍🗨️ Gizli alan: {label}
+        </div>
+      </div>
+    );
+  }
+
+  // Input (1)
+  if (ft === 1) {
+    return (
+      <div style={wrap}>
+        <div style={labelStyle}>{label}{reqDot}</div>
+        <input style={inputStyle} placeholder={ph || "Değer giriniz..."} disabled={disabled} value={value}
+          onChange={(e) => { setValue(e.target.value); if (validated) setValidated(false); }} />
+        {cfg.Mask && <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 4, fontFamily: "monospace" }}>Maske: {cfg.Mask}</div>}
+        {counterEl}
+        {errorEl}
+        {validEl}
+        {actionBar}
+      </div>
+    );
+  }
+
+  // Dropdown (2)
+  if (ft === 2) {
+    return (
+      <div style={wrap}>
+        <div style={labelStyle}>{label}{reqDot}</div>
+        <div style={{ ...inputStyle, display: "flex", justifyContent: "space-between", alignItems: "center", color: selectedOpt ? "#111827" : "#9ca3af", cursor: "pointer" }}>
+          <span>{selectedOpt?.Label || ph || "Seçiniz..."}</span>
+          <span style={{ fontSize: 10 }}>▼</span>
+        </div>
+        {cfg.Options?.length > 0 && (
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 8 }}>
+            {cfg.Options.map((o, i) => (
+              <span key={i} onClick={() => { setSelectedOpt(o); setValue(o.Value); if (validated) setValidated(false); }}
+                style={{ background: selectedOpt?.Value === o.Value ? "#3b82f6" : "#f3f4f6", color: selectedOpt?.Value === o.Value ? "#fff" : "#374151", padding: "4px 10px", borderRadius: 12, fontSize: 11, fontFamily: sans, cursor: "pointer", transition: "all 0.15s", border: `1px solid ${selectedOpt?.Value === o.Value ? "#3b82f6" : "#e5e7eb"}` }}>
+                {o.Label || o.Value}
+              </span>
+            ))}
+          </div>
+        )}
+        {errorEl}
+        {validEl}
+        {actionBar}
+      </div>
+    );
+  }
+
+  // Checkbox (3)
+  if (ft === 3) {
+    return (
+      <div style={wrap}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => { setChecked(!checked); setValue(!checked ? "true" : ""); if (validated) setValidated(false); }}>
+          <div style={{ width: 20, height: 20, borderRadius: 4, border: `2px solid ${checked ? "#3b82f6" : hasError ? "#ef4444" : "#d1d5db"}`, background: checked ? "#3b82f6" : "#fff", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}>
+            {checked && <span style={{ color: "#fff", fontSize: 12, fontWeight: 700 }}>✓</span>}
+          </div>
+          <span style={{ ...labelStyle, margin: 0 }}>{label}{reqDot}</span>
+        </div>
+        {errorEl}
+        {validEl}
+        {actionBar}
+      </div>
+    );
+  }
+
+  // RadioGroup (4)
+  if (ft === 4) {
+    const opts = cfg.Options?.length > 0 ? cfg.Options : [{ Value: "opt1", Label: "Seçenek 1" }, { Value: "opt2", Label: "Seçenek 2" }];
+    return (
+      <div style={wrap}>
+        <div style={labelStyle}>{label}{reqDot}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {opts.map((o, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => { setRadioVal(o.Value); setValue(o.Value); if (validated) setValidated(false); }}>
+              <div style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${radioVal === o.Value ? "#3b82f6" : "#d1d5db"}`, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}>
+                {radioVal === o.Value && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#3b82f6" }} />}
+              </div>
+              <span style={{ fontSize: 13, color: "#374151", fontFamily: sans }}>{o.Label || o.Value}</span>
+            </div>
+          ))}
+        </div>
+        {errorEl}
+        {validEl}
+        {actionBar}
+      </div>
+    );
+  }
+
+  // DatePicker (5)
+  if (ft === 5) {
+    return (
+      <div style={wrap}>
+        <div style={labelStyle}>{label}{reqDot}</div>
+        <input type="date" style={inputStyle} value={value}
+          onChange={(e) => { setValue(e.target.value); if (validated) setValidated(false); }} />
+        {errorEl}
+        {validEl}
+        {actionBar}
+      </div>
+    );
+  }
+
+  // AmountInput (6)
+  if (ft === 6) {
+    return (
+      <div style={wrap}>
+        <div style={labelStyle}>{label}{reqDot}</div>
+        <div style={{ ...inputStyle, display: "flex", alignItems: "center", gap: 8, padding: 0, overflow: "hidden" }}>
+          <span style={{ color: "#6b7280", fontWeight: 600, fontSize: 14, padding: "10px 0 10px 12px", fontFamily: sans }}>₺</span>
+          <input style={{ border: "none", outline: "none", flex: 1, fontSize: 14, color: "#111827", fontFamily: sans, padding: "10px 12px 10px 0", background: "transparent" }}
+            placeholder={ph || "0,00"} value={value} disabled={disabled}
+            onChange={(e) => { setValue(e.target.value); if (validated) setValidated(false); }} />
+        </div>
+        {counterEl}
+        {errorEl}
+        {validEl}
+        {actionBar}
+      </div>
+    );
+  }
+
+  // InfoCard (7)
+  if (ft === 7) {
+    return (
+      <div style={{ ...wrap, background: "#eff6ff", border: "1px solid #bfdbfe" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: "#3b82f6", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16 }}>ℹ</div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#1e3a5f", fontFamily: sans }}>{label}</div>
+            {ph && <div style={{ fontSize: 12, color: "#6b7280", fontFamily: sans }}>{ph}</div>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // InfoText (8)
+  if (ft === 8) {
+    return (
+      <div style={wrap}>
+        <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.5, fontFamily: sans }}>
+          {label}{ph ? `: ${ph}` : ""}
+        </div>
+      </div>
+    );
+  }
+
+  return <div style={wrap}><div style={labelStyle}>{label}</div></div>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// COMPONENT PALETTE
+// ═══════════════════════════════════════════════════════════════
+function ComponentPalette({ onAddField }) {
+  return (
+    <div style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}`, background: C.surface }}>
+      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: C.text2, marginBottom: 8 }}>
+        Bileşenler — sürükle veya tıkla
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 5 }}>
+        {FIELD_TYPES.map((ft) => (
+          <div
+            key={ft.value} draggable
+            onDragStart={(e) => { e.dataTransfer.setData("palette-type", ft.value.toString()); e.dataTransfer.effectAllowed = "copy"; }}
+            onClick={() => onAddField(ft.value)}
+            style={{ background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 4px", textAlign: "center", cursor: "grab", userSelect: "none", transition: "transform 0.12s" }}
+          >
+            <div style={{ fontSize: 18 }}>{ft.icon}</div>
+            <div style={{ fontSize: 9, fontWeight: 600, color: C.text2, marginTop: 1 }}>{ft.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SUB-COMPONENTS
+// ═══════════════════════════════════════════════════════════════
+function Label({ text }) {
+  const r = text.endsWith("*");
+  return <label style={{ display: "block", fontSize: 11, color: C.text2, marginTop: 10, marginBottom: 4, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.5 }}>{r ? text.slice(0, -2) : text}{r && <span style={{ color: C.danger, marginLeft: 2 }}>*</span>}</label>;
+}
+
+function Section({ title, children, defaultOpen, count }) {
+  const [open, setOpen] = useState(defaultOpen !== false);
+  return (
+    <div style={{ marginBottom: 12, background: C.surface2, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", cursor: "pointer", color: C.accent, fontWeight: 600, fontSize: 12, textTransform: "uppercase", letterSpacing: 1 }} onClick={() => setOpen(!open)}>
+        <span>{title}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {count != null && <span style={{ background: C.bg, padding: "1px 7px", borderRadius: 8, fontSize: 10, color: C.text2 }}>{count}</span>}
+          <span style={{ fontSize: 12 }}>{open ? "▾" : "▸"}</span>
+        </div>
+      </div>
+      {open && <div style={{ padding: "0 14px 14px" }}>{children}</div>}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FIELD EDITOR + PREVIEW
+// ═══════════════════════════════════════════════════════════════
+function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onClose }) {
+  if (!field) return null;
   const hasOpts = field.FieldType === 2 || field.FieldType === 4;
   const hasLen = field.FieldType === 1;
   const hasVal = field.FieldType === 6;
-  const otherFields = allFields.filter(f => f.Id !== field.Id);
+  const others = allFields.filter((f) => f.Id !== field.Id);
+  const inp = { width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: C.text, padding: "8px 10px", borderRadius: 6, fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
 
-  const addOption = () => {
-    const opts = [].concat(field.Config?.Options || [], [{ Value: "", Label: "" }]);
-    onUpdateConfig(field.Id, { Options: opts });
-  };
-  const updateOption = (idx, key, val) => {
-    const opts = (field.Config?.Options || []).map((o, i) => i === idx ? Object.assign({}, o, { [key]: val }) : o);
-    onUpdateConfig(field.Id, { Options: opts });
-  };
-  const removeOption = (idx) => {
-    onUpdateConfig(field.Id, { Options: (field.Config?.Options || []).filter((_, i) => i !== idx) });
-  };
-  const addValidation = () => {
-    const rules = [].concat(field.Config?.ValidationRules || [], [{ Type: 0, ErrorMessage: "" }]);
-    onUpdateConfig(field.Id, { ValidationRules: rules });
-  };
-  const updateValidation = (idx, updates) => {
-    const rules = (field.Config?.ValidationRules || []).map((r, i) => i === idx ? Object.assign({}, r, updates) : r);
-    onUpdateConfig(field.Id, { ValidationRules: rules });
-  };
-  const removeValidation = (idx) => {
-    onUpdateConfig(field.Id, { ValidationRules: (field.Config?.ValidationRules || []).filter((_, i) => i !== idx) });
-  };
-  const setDependency = (parentId) => {
-    if (!parentId) { onUpdate(field.Id, { DependsOn: undefined }); }
-    else { onUpdate(field.Id, { DependsOn: { FieldId: parentId, DefaultVisible: false, Rules: {} } }); }
-  };
-  const addDepRule = () => {
-    const dep = field.DependsOn || { FieldId: "", DefaultVisible: false, Rules: {} };
-    const rules = Object.assign({}, dep.Rules, { "": { Visible: true, Required: false } });
-    onUpdate(field.Id, { DependsOn: Object.assign({}, dep, { Rules: rules }) });
-  };
-  const updateDepRule = (oldKey, newKey, ruleUpdates) => {
-    const rules = Object.assign({}, field.DependsOn?.Rules);
-    if (oldKey !== newKey) delete rules[oldKey];
-    rules[newKey] = Object.assign({}, rules[newKey] || rules[oldKey] || {}, ruleUpdates);
-    onUpdate(field.Id, { DependsOn: Object.assign({}, field.DependsOn, { Rules: rules }) });
-  };
-  const removeDepRule = (key) => {
-    const rules = Object.assign({}, field.DependsOn?.Rules);
-    delete rules[key];
-    onUpdate(field.Id, { DependsOn: Object.assign({}, field.DependsOn, { Rules: rules }) });
-  };
+  const addOpt = () => onUpdateConfig(field.Id, { Options: [...(field.Config?.Options || []), { Value: "", Label: "" }] });
+  const upOpt = (i, k, v) => onUpdateConfig(field.Id, { Options: (field.Config?.Options || []).map((o, j) => j === i ? { ...o, [k]: v } : o) });
+  const rmOpt = (i) => onUpdateConfig(field.Id, { Options: (field.Config?.Options || []).filter((_, j) => j !== i) });
+  const addVal = () => onUpdateConfig(field.Id, { ValidationRules: [...(field.Config?.ValidationRules || []), { Type: 0, ErrorMessage: "" }] });
+  const upVal = (i, u) => onUpdateConfig(field.Id, { ValidationRules: (field.Config?.ValidationRules || []).map((r, j) => j === i ? { ...r, ...u } : r) });
+  const rmVal = (i) => onUpdateConfig(field.Id, { ValidationRules: (field.Config?.ValidationRules || []).filter((_, j) => j !== i) });
+  const setDep = (p) => p ? onUpdate(field.Id, { DependsOn: { FieldId: p, DefaultVisible: false, Rules: {} } }) : onUpdate(field.Id, { DependsOn: undefined });
+  const addDR = () => { const d = field.DependsOn || { FieldId: "", DefaultVisible: false, Rules: {} }; onUpdate(field.Id, { DependsOn: { ...d, Rules: { ...d.Rules, "": { Visible: true } } } }); };
+  const upDR = (ok, nk, ru) => { const r = { ...field.DependsOn?.Rules }; if (ok !== nk) delete r[ok]; r[nk] = { ...(r[nk] || r[ok] || {}), ...ru }; onUpdate(field.Id, { DependsOn: { ...field.DependsOn, Rules: r } }); };
+  const rmDR = (k) => { const r = { ...field.DependsOn?.Rules }; delete r[k]; onUpdate(field.Id, { DependsOn: { ...field.DependsOn, Rules: r } }); };
 
-  const inp = { width: "100%", background: C.bg, border: "1px solid " + C.border, color: C.text, padding: "8px 10px", borderRadius: 6, fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
-  const sel = Object.assign({}, inp);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", animation: "slideIn 0.2s ease" }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", borderBottom: `1px solid ${C.border}`, background: C.surface }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 20 }}>{fieldTypeInfo(field.FieldType).icon}</span>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.accent }}>{field.Label || field.Id || "Yeni Alan"}</h3>
+        </div>
+        <button style={{ background: "none", border: "none", color: C.text2, fontSize: 18, cursor: "pointer" }} onClick={onClose}>✕</button>
+      </div>
 
-  return React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100%", animation: "slideIn 0.2s ease" } },
-    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid " + C.border } },
-      React.createElement("h3", { style: { margin: 0, fontSize: 16, fontWeight: 700, color: C.accent } }, "Alan Düzenle"),
-      React.createElement("button", { style: { background: "none", border: "none", color: C.text2, fontSize: 18, cursor: "pointer" }, onClick: onClose }, "✕")
-    ),
-    React.createElement("div", { style: { flex: 1, overflowY: "auto", padding: "16px 20px" } },
-      // Basic
-      React.createElement(Section, { title: "Temel Bilgiler" },
-        React.createElement(Label, { text: "Field ID *" }),
-        React.createElement("input", { style: inp, value: field.Id, onChange: e => onUpdate(field.Id, { Id: e.target.value }) }),
-        React.createElement(Label, { text: "Label *" }),
-        React.createElement("input", { style: inp, value: field.Label || "", onChange: e => onUpdate(field.Id, { Label: e.target.value }), placeholder: "Alan başlığı" }),
-        React.createElement(Label, { text: "Field Type *" }),
-        React.createElement("select", { style: sel, value: field.FieldType, onChange: e => {
-          const t = parseInt(e.target.value);
-          onUpdate(field.Id, { FieldType: t });
-          const cu = {};
-          if (t !== 2 && t !== 4) cu.Options = undefined;
-          if (t !== 1) { cu.MinLength = undefined; cu.MaxLength = undefined; cu.Mask = undefined; }
-          if (t !== 6) { cu.MinValue = undefined; cu.MaxValue = undefined; }
-          if (Object.keys(cu).length) onUpdateConfig(field.Id, cu);
-        }},
-          FIELD_TYPES.map(t => React.createElement("option", { key: t.value, value: t.value }, t.icon + " " + t.label))
-        ),
-        React.createElement(Label, { text: "Placeholder" }),
-        React.createElement("input", { style: inp, value: field.Config?.Placeholder || "", onChange: e => onUpdateConfig(field.Id, { Placeholder: e.target.value }) }),
-        React.createElement("div", { style: { display: "flex", gap: 16, marginTop: 10 } },
-          React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer" } },
-            React.createElement("input", { type: "checkbox", checked: field.Config?.Visible !== false, onChange: e => onUpdateConfig(field.Id, { Visible: e.target.checked }) }), "Visible"),
-          React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer" } },
-            React.createElement("input", { type: "checkbox", checked: field.Config?.Enabled !== false, onChange: e => onUpdateConfig(field.Id, { Enabled: e.target.checked }) }), "Enabled"),
-          React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer" } },
-            React.createElement("input", { type: "checkbox", checked: !!field.Config?.Required, onChange: e => onUpdateConfig(field.Id, { Required: e.target.checked }) }), "Required")
-        )
-      ),
+      {/* Scrollable content */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px" }}>
 
-      // Length
-      hasLen && React.createElement(Section, { title: "Uzunluk Ayarları" },
-        React.createElement("div", { style: { display: "flex", gap: 8 } },
-          React.createElement("div", { style: { flex: 1 } },
-            React.createElement(Label, { text: "Min Length" }),
-            React.createElement("input", { style: inp, type: "number", value: field.Config?.MinLength || "", onChange: e => onUpdateConfig(field.Id, { MinLength: e.target.value ? parseInt(e.target.value) : undefined }) })
-          ),
-          React.createElement("div", { style: { flex: 1 } },
-            React.createElement(Label, { text: "Max Length" }),
-            React.createElement("input", { style: inp, type: "number", value: field.Config?.MaxLength || "", onChange: e => onUpdateConfig(field.Id, { MaxLength: e.target.value ? parseInt(e.target.value) : undefined }) })
-          )
-        ),
-        React.createElement(Label, { text: "Mask" }),
-        React.createElement("input", { style: inp, value: field.Config?.Mask || "", onChange: e => onUpdateConfig(field.Id, { Mask: e.target.value }), placeholder: "### ### ## ##" }),
-        React.createElement(Label, { text: "Keyboard Type" }),
-        React.createElement("select", { style: sel, value: field.Config?.KeyboardType || 0, onChange: e => onUpdateConfig(field.Id, { KeyboardType: parseInt(e.target.value) }) },
-          KEYBOARD_TYPES.map(k => React.createElement("option", { key: k.value, value: k.value }, k.label))
-        )
-      ),
+        {/* ── Temel ── */}
+        <Section title="Temel Bilgiler">
+          <Label text="Alan ID *" />
+          <input style={inp} value={field.Id} onChange={(e) => onUpdate(field.Id, { Id: e.target.value })} />
+          <Label text="Başlık *" />
+          <input style={inp} value={field.Label || ""} onChange={(e) => onUpdate(field.Id, { Label: e.target.value })} placeholder="Alan başlığı" />
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <Label text="Alan Tipi *" />
+              <select style={inp} value={field.FieldType} onChange={(e) => onUpdate(field.Id, { FieldType: parseInt(e.target.value) })}>
+                {FIELD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.icon} {t.label}</option>)}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <Label text="Section" />
+              <select style={inp} value={field.SectionId || ""} onChange={(e) => onUpdate(field.Id, { SectionId: e.target.value })}>
+                {sections.map((s) => <option key={s.Id} value={s.Id}>{s.Title || s.Id}</option>)}
+              </select>
+            </div>
+          </div>
+          <Label text="Placeholder" />
+          <input style={inp} value={field.Config?.Placeholder || ""} onChange={(e) => onUpdateConfig(field.Id, { Placeholder: e.target.value })} />
+          <div style={{ display: "flex", gap: 16, marginTop: 10 }}>
+            {[["Visible", "Görünür"], ["Enabled", "Aktif"], ["Required", "Zorunlu"]].map(([p, l]) => (
+              <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer" }}>
+                <input type="checkbox" checked={p === "Required" ? !!field.Config?.[p] : field.Config?.[p] !== false} onChange={(e) => onUpdateConfig(field.Id, { [p]: e.target.checked })} /> {l}
+              </label>
+            ))}
+          </div>
+        </Section>
 
-      // Value
-      hasVal && React.createElement(Section, { title: "Değer Ayarları" },
-        React.createElement("div", { style: { display: "flex", gap: 8 } },
-          React.createElement("div", { style: { flex: 1 } },
-            React.createElement(Label, { text: "Min Value" }),
-            React.createElement("input", { style: inp, type: "number", step: "0.01", value: field.Config?.MinValue || "", onChange: e => onUpdateConfig(field.Id, { MinValue: e.target.value ? parseFloat(e.target.value) : undefined }) })
-          ),
-          React.createElement("div", { style: { flex: 1 } },
-            React.createElement(Label, { text: "Max Value" }),
-            React.createElement("input", { style: inp, type: "number", step: "0.01", value: field.Config?.MaxValue || "", onChange: e => onUpdateConfig(field.Id, { MaxValue: e.target.value ? parseFloat(e.target.value) : undefined }) })
-          )
-        )
-      ),
+        {/* ── Uzunluk ── */}
+        {hasLen && (
+          <Section title="Uzunluk & Klavye">
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ flex: 1 }}><Label text="Min" /><input style={inp} type="number" value={field.Config?.MinLength ?? ""} onChange={(e) => onUpdateConfig(field.Id, { MinLength: e.target.value ? parseInt(e.target.value) : null })} /></div>
+              <div style={{ flex: 1 }}><Label text="Max" /><input style={inp} type="number" value={field.Config?.MaxLength ?? ""} onChange={(e) => onUpdateConfig(field.Id, { MaxLength: e.target.value ? parseInt(e.target.value) : null })} /></div>
+            </div>
+            <Label text="Maske" />
+            <input style={inp} value={field.Config?.Mask || ""} onChange={(e) => onUpdateConfig(field.Id, { Mask: e.target.value })} placeholder="### ### ## ##" />
+            <Label text="Klavye" />
+            <select style={inp} value={field.Config?.KeyboardType ?? 0} onChange={(e) => onUpdateConfig(field.Id, { KeyboardType: parseInt(e.target.value) })}>
+              {KEYBOARD_TYPES.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+            </select>
+          </Section>
+        )}
 
-      // Options
-      hasOpts && React.createElement(Section, { title: "Options (" + (field.Config?.Options?.length || 0) + ")" },
-        (field.Config?.Options || []).map((opt, idx) =>
-          React.createElement("div", { key: idx, style: { display: "flex", gap: 6, marginBottom: 6, alignItems: "center" } },
-            React.createElement("input", { style: Object.assign({}, inp, { flex: 1 }), value: opt.Value, onChange: e => updateOption(idx, "Value", e.target.value), placeholder: "Value" }),
-            React.createElement("input", { style: Object.assign({}, inp, { flex: 1 }), value: opt.Label, onChange: e => updateOption(idx, "Label", e.target.value), placeholder: "Label" }),
-            React.createElement("button", { style: { background: C.danger + "20", border: "none", color: C.danger, width: 24, height: 24, borderRadius: 4, cursor: "pointer", fontSize: 12, flexShrink: 0 }, onClick: () => removeOption(idx) }, "✕")
-          )
-        ),
-        React.createElement("button", { style: { background: "none", border: "1px dashed " + C.accent + "60", color: C.accent, padding: "6px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, marginTop: 6 }, onClick: addOption }, "+ Option Ekle")
-      ),
+        {/* ── Değer ── */}
+        {hasVal && (
+          <Section title="Değer Sınırları">
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ flex: 1 }}><Label text="Min" /><input style={inp} type="number" step="0.01" value={field.Config?.MinValue ?? ""} onChange={(e) => onUpdateConfig(field.Id, { MinValue: e.target.value ? parseFloat(e.target.value) : null })} /></div>
+              <div style={{ flex: 1 }}><Label text="Max" /><input style={inp} type="number" step="0.01" value={field.Config?.MaxValue ?? ""} onChange={(e) => onUpdateConfig(field.Id, { MaxValue: e.target.value ? parseFloat(e.target.value) : null })} /></div>
+            </div>
+          </Section>
+        )}
 
-      // Validation
-      React.createElement(Section, { title: "Validation (" + (field.Config?.ValidationRules?.length || 0) + ")" },
-        (field.Config?.ValidationRules || []).map((rule, idx) =>
-          React.createElement("div", { key: idx, style: { background: C.bg, borderRadius: 6, padding: 10, marginBottom: 6, border: "1px solid " + C.border } },
-            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 6 } },
-              React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: C.text2, textTransform: "uppercase" } }, "Rule " + (idx + 1)),
-              React.createElement("button", { style: { background: C.danger + "20", border: "none", color: C.danger, width: 24, height: 24, borderRadius: 4, cursor: "pointer", fontSize: 12 }, onClick: () => removeValidation(idx) }, "✕")
-            ),
-            React.createElement("select", { style: sel, value: rule.Type || 0, onChange: e => updateValidation(idx, { Type: parseInt(e.target.value) }) },
-              VALIDATION_TYPES.map(v => React.createElement("option", { key: v.value, value: v.value }, v.label))
-            ),
-            React.createElement("input", { style: Object.assign({}, inp, { marginTop: 6 }), value: rule.ErrorMessage || "", onChange: e => updateValidation(idx, { ErrorMessage: e.target.value }), placeholder: "Hata mesajı" }),
-            rule.Type === 0 && React.createElement("input", { style: Object.assign({}, inp, { marginTop: 6 }), value: rule.Pattern || "", onChange: e => updateValidation(idx, { Pattern: e.target.value }), placeholder: "Regex pattern" })
-          )
-        ),
-        React.createElement("button", { style: { background: "none", border: "1px dashed " + C.accent + "60", color: C.accent, padding: "6px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, marginTop: 6 }, onClick: addValidation }, "+ Validation Ekle")
-      ),
+        {/* ── Seçenekler ── */}
+        {hasOpts && (
+          <Section title="Seçenekler" count={field.Config?.Options?.length || 0}>
+            {(field.Config?.Options || []).map((opt, idx) => (
+              <div key={idx} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
+                <span style={{ color: C.text2, fontSize: 10, width: 14, textAlign: "center", flexShrink: 0 }}>{idx + 1}</span>
+                <input style={{ ...inp, flex: 1 }} value={opt.Value} onChange={(e) => upOpt(idx, "Value", e.target.value)} placeholder="Değer" />
+                <input style={{ ...inp, flex: 1 }} value={opt.Label} onChange={(e) => upOpt(idx, "Label", e.target.value)} placeholder="Etiket" />
+                <button style={{ background: C.danger + "20", border: "none", color: C.danger, width: 22, height: 22, borderRadius: 4, cursor: "pointer", fontSize: 11, flexShrink: 0 }} onClick={() => rmOpt(idx)}>✕</button>
+              </div>
+            ))}
+            <button style={{ background: "none", border: `1px dashed ${C.accent}60`, color: C.accent, padding: "5px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, marginTop: 4 }} onClick={addOpt}>+ Seçenek</button>
+          </Section>
+        )}
 
-      // Dependency
-      React.createElement(Section, { title: "Dependency" },
-        otherFields.length === 0
-          ? React.createElement("div", { style: { color: C.text2, fontSize: 12, padding: 8 } }, "En az 2 alan gerekli")
-          : React.createElement(React.Fragment, null,
-              React.createElement(Label, { text: "Parent Alan" }),
-              React.createElement("select", { style: sel, value: field.DependsOn?.FieldId || "", onChange: e => setDependency(e.target.value || null) },
-                React.createElement("option", { value: "" }, "Yok"),
-                otherFields.map(f => React.createElement("option", { key: f.Id, value: f.Id }, f.Label || f.Id))
-              ),
-              field.DependsOn?.FieldId && React.createElement(React.Fragment, null,
-                React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer", marginTop: 8 } },
-                  React.createElement("input", { type: "checkbox", checked: !!field.DependsOn?.DefaultVisible, onChange: e => onUpdate(field.Id, { DependsOn: Object.assign({}, field.DependsOn, { DefaultVisible: e.target.checked }) }) }), "Default Visible"
-                ),
-                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, fontSize: 12, color: C.text2 } },
-                  React.createElement("span", null, "Rules (" + Object.keys(field.DependsOn?.Rules || {}).length + ")"),
-                  React.createElement("button", { style: { background: "none", border: "1px dashed " + C.accent + "60", color: C.accent, padding: "4px 10px", borderRadius: 6, fontSize: 10, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }, onClick: addDepRule }, "+ Rule")
-                ),
-                Object.entries(field.DependsOn?.Rules || {}).map(([key, rule]) =>
-                  React.createElement("div", { key: key, style: { background: C.bg, borderRadius: 6, padding: 10, marginTop: 6, border: "1px solid " + C.border } },
-                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 6, alignItems: "center" } },
-                      React.createElement("input", { style: Object.assign({}, inp, { maxWidth: 160 }), value: key, onChange: e => updateDepRule(key, e.target.value, rule), placeholder: "Parent değeri" }),
-                      React.createElement("button", { style: { background: C.danger + "20", border: "none", color: C.danger, width: 24, height: 24, borderRadius: 4, cursor: "pointer", fontSize: 12 }, onClick: () => removeDepRule(key) }, "✕")
-                    ),
-                    React.createElement("div", { style: { display: "flex", gap: 16, marginTop: 6 } },
-                      React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer" } },
-                        React.createElement("input", { type: "checkbox", checked: rule.Visible !== false, onChange: e => updateDepRule(key, key, Object.assign({}, rule, { Visible: e.target.checked })) }), "Visible"),
-                      React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer" } },
-                        React.createElement("input", { type: "checkbox", checked: !!rule.Required, onChange: e => updateDepRule(key, key, Object.assign({}, rule, { Required: e.target.checked })) }), "Required"),
-                      React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer" } },
-                        React.createElement("input", { type: "checkbox", checked: rule.Enabled !== false, onChange: e => updateDepRule(key, key, Object.assign({}, rule, { Enabled: e.target.checked })) }), "Enabled")
-                    )
-                  )
-                )
-              )
-            )
-      )
-    )
+        {/* ── Doğrulama ── */}
+        <Section title="Doğrulama" count={field.Config?.ValidationRules?.length || 0} defaultOpen={false}>
+          {(field.Config?.ValidationRules || []).map((rule, idx) => (
+            <div key={idx} style={{ background: C.bg, borderRadius: 6, padding: 10, marginBottom: 6, border: `1px solid ${C.border}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.text2 }}>Kural {idx + 1}</span>
+                <button style={{ background: C.danger + "20", border: "none", color: C.danger, width: 22, height: 22, borderRadius: 4, cursor: "pointer", fontSize: 11 }} onClick={() => rmVal(idx)}>✕</button>
+              </div>
+              <select style={inp} value={rule.Type ?? 0} onChange={(e) => upVal(idx, { Type: parseInt(e.target.value) })}>
+                {VALIDATION_TYPES.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
+              </select>
+              <input style={{ ...inp, marginTop: 6 }} value={rule.ErrorMessage || ""} onChange={(e) => upVal(idx, { ErrorMessage: e.target.value })} placeholder="Hata mesajı" />
+              {rule.Type === 0 && <input style={{ ...inp, marginTop: 6 }} value={rule.Pattern || ""} onChange={(e) => upVal(idx, { Pattern: e.target.value })} placeholder="Regex" />}
+            </div>
+          ))}
+          <button style={{ background: "none", border: `1px dashed ${C.accent}60`, color: C.accent, padding: "5px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, marginTop: 4 }} onClick={addVal}>+ Doğrulama</button>
+        </Section>
+
+        {/* ── Bağımlılık ── */}
+        <Section title="Bağımlılık" defaultOpen={!!field.DependsOn}>
+          {others.length === 0 ? (
+            <div style={{ color: C.text2, fontSize: 12, padding: 8 }}>Başka alan ekleyin</div>
+          ) : (
+            <>
+              <Label text="Üst Alan" />
+              <select style={inp} value={field.DependsOn?.FieldId || ""} onChange={(e) => setDep(e.target.value || null)}>
+                <option value="">— Yok —</option>
+                {others.map((f) => <option key={f.Id} value={f.Id}>{(f.Label || f.Id)} ({f.Id})</option>)}
+              </select>
+              {field.DependsOn?.FieldId && (
+                <>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.text2, cursor: "pointer", marginTop: 8 }}>
+                    <input type="checkbox" checked={!!field.DependsOn?.DefaultVisible} onChange={(e) => onUpdate(field.Id, { DependsOn: { ...field.DependsOn, DefaultVisible: e.target.checked } })} /> Varsayılan Görünür
+                  </label>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, fontSize: 11, color: C.text2 }}>
+                    <span>Kurallar</span>
+                    <button style={{ background: "none", border: `1px dashed ${C.accent}60`, color: C.accent, padding: "3px 10px", borderRadius: 6, fontSize: 10, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} onClick={addDR}>+</button>
+                  </div>
+                  {Object.entries(field.DependsOn?.Rules || {}).map(([key, rule]) => (
+                    <div key={key} style={{ background: C.bg, borderRadius: 6, padding: 10, marginTop: 6, border: `1px solid ${C.border}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, alignItems: "center" }}>
+                        <input style={{ ...inp, maxWidth: 150 }} value={key} onChange={(e) => upDR(key, e.target.value, rule)} placeholder="Değer" />
+                        <button style={{ background: C.danger + "20", border: "none", color: C.danger, width: 22, height: 22, borderRadius: 4, cursor: "pointer", fontSize: 11 }} onClick={() => rmDR(key)}>✕</button>
+                      </div>
+                      <div style={{ display: "flex", gap: 12, marginTop: 6 }}>
+                        {[["Visible", "Görünür"], ["Required", "Zorunlu"]].map(([p, l]) => (
+                          <label key={p} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.text2, cursor: "pointer" }}>
+                            <input type="checkbox" checked={p === "Required" ? !!rule[p] : rule[p] !== false} onChange={(e) => upDR(key, key, { ...rule, [p]: e.target.checked })} /> {l}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+        </Section>
+
+        {/* ═══ LIVE PREVIEW ═══ */}
+        <div style={{ marginTop: 16, marginBottom: 20 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: C.text2, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 14 }}>📱</span> Mobil Önizleme — Yazarak Test Edin
+          </div>
+          <div style={{ background: "#f3f4f6", borderRadius: 16, padding: 16, border: `2px solid ${C.border}`, position: "relative", overflow: "hidden" }}>
+            {/* Phone frame top */}
+            <div style={{ textAlign: "center", marginBottom: 12 }}>
+              <div style={{ display: "inline-block", width: 60, height: 4, borderRadius: 2, background: "#d1d5db" }} />
+            </div>
+            <FieldPreview field={field} />
+            {/* Bottom bar */}
+            <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+              <div style={{ width: 40, height: 4, borderRadius: 2, background: "#d1d5db" }} />
+            </div>
+          </div>
+          {/* Validation rules summary */}
+          {(field.Config?.ValidationRules?.length > 0 || field.Config?.MinLength || field.Config?.MaxLength || field.Config?.Required) && (
+            <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {field.Config?.Required && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.warning + "20", color: C.warning }}>Zorunlu</span>}
+              {field.Config?.MinLength && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.blue + "20", color: C.blue }}>Min: {field.Config.MinLength}</span>}
+              {field.Config?.MaxLength && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.blue + "20", color: C.blue }}>Max: {field.Config.MaxLength}</span>}
+              {(field.Config?.ValidationRules || []).map((r, i) => (
+                <span key={i} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.accent2 + "20", color: C.accent2 }}>
+                  {VALIDATION_TYPES.find(v => v.value === r.Type)?.label || "Regex"}{r.Pattern ? `: ${r.Pattern.substring(0, 20)}${r.Pattern.length > 20 ? "…" : ""}` : ""}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
-function App() {
+// ═══════════════════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════════════════
+function DynamicFormBuilder() {
   const [activeTab, setActiveTab] = useState("builder");
   const [sections, setSections] = useState([{ Id: "main", Title: "FORM", Order: 1 }]);
   const [fields, setFields] = useState([]);
-  const [jsonText, setJsonText] = useState("");
-  const [jsonError, setJsonError] = useState(null);
   const [editingField, setEditingField] = useState(null);
+  const [activeSection, setActiveSection] = useState("main");
+  const [toast, setToast] = useState(null);
+  const [customTemplates, setCustomTemplates] = useState(loadCustomTemplates);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState("");
   const [shareUrl, setShareUrl] = useState(null);
   const [showQR, setShowQR] = useState(false);
   const [dragIdx, setDragIdx] = useState(null);
-  const [dragOverIdx, setDragOverIdx] = useState(null);
-  const [toast, setToast] = useState(null);
+  const [jsonText, setJsonText] = useState("");
+  const [jsonError, setJsonError] = useState(null);
+  const jsonDb = useRef(null);
+  const fileRef = useRef(null);
 
-  useEffect(() => {
-    const shared = parseShareUrl();
-    if (shared) {
-      if (shared.Sections) setSections(shared.Sections);
-      if (shared.FormFields) setFields(shared.FormFields);
-      setJsonText(JSON.stringify(shared, null, 2));
-      showToastMsg("Paylaşılan form yüklendi!");
-    }
-  }, []);
+  useEffect(() => { const s = parseShareUrl(); if (s) { if (s.Sections) setSections(s.Sections); if (s.FormFields) setFields(s.FormFields); showToastMsg("Paylaşılan form yüklendi!"); } }, []);
+  useEffect(() => { if (activeTab === "json") { setJsonText(JSON.stringify({ Sections: sections, FormFields: fields }, null, 2)); setJsonError(null); } }, [activeTab]);
 
-  const showToastMsg = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+  const showToastMsg = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+  const buildJson = () => ({ Sections: sections, FormFields: fields });
 
-  const buildJson = useCallback(() => JSON.stringify({ Sections: sections, FormFields: fields }, null, 2), [sections, fields]);
-
-  useEffect(() => { if (activeTab === "json") setJsonText(buildJson()); }, [activeTab, buildJson]);
-
-  const applyJson = () => {
-    try {
-      const p = JSON.parse(jsonText);
-      if (p.Sections) setSections(p.Sections);
-      if (p.FormFields) setFields(p.FormFields);
-      setJsonError(null);
-      showToastMsg("JSON uygulandı!");
-    } catch (e) { setJsonError(e.message); }
+  // JSON auto-sync
+  const handleJsonEdit = (text) => {
+    setJsonText(text);
+    if (jsonDb.current) clearTimeout(jsonDb.current);
+    jsonDb.current = setTimeout(() => { try { const p = JSON.parse(text); if (p.Sections) setSections(p.Sections); if (p.FormFields) setFields(p.FormFields); setJsonError(null); } catch (e) { setJsonError(e.message); } }, 800);
   };
 
-  const addField = () => {
-    const f = createEmptyField(fields.length + 1);
-    setFields([...fields, f]);
-    setEditingField(f.Id);
+  // File upload
+  const handleFileUpload = (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = (ev) => { try { const raw = JSON.parse(ev.target.result); const c = extractFormData(raw); if (c.Sections) setSections(c.Sections); if (c.FormFields) setFields(c.FormFields.sort((a, b) => (a.Order ?? 0) - (b.Order ?? 0))); setActiveTab("builder"); setActiveSection(c.Sections?.[0]?.Id || "main"); showToastMsg("JSON yüklendi! (__type temizlendi)"); } catch { showToastMsg("Hata: Geçersiz JSON"); } };
+    r.readAsText(f); e.target.value = "";
   };
 
-  const updateField = (id, updates) => setFields(fs => fs.map(f => f.Id === id ? Object.assign({}, f, updates) : f));
-  const updateFieldConfig = (id, cu) => setFields(fs => fs.map(f => f.Id !== id ? f : Object.assign({}, f, { Config: Object.assign({}, f.Config, cu) })));
-  const removeField = (id) => { setFields(fs => fs.filter(f => f.Id !== id).map((f, i) => Object.assign({}, f, { Order: i + 1 }))); if (editingField === id) setEditingField(null); };
-  const duplicateField = (id) => {
-    const src = fields.find(f => f.Id === id);
-    if (!src) return;
-    const dup = JSON.parse(JSON.stringify(src));
-    dup.Id = "field_" + Date.now().toString(36);
-    dup.Order = fields.length + 1;
-    dup.Label = (src.Label || "") + " (kopya)";
-    setFields([...fields, dup]);
-    showToastMsg("Alan kopyalandı!");
+  // Section CRUD
+  const addSection = () => { const id = `sec_${Date.now().toString(36)}`; setSections((p) => [...p, { Id: id, Title: "YENİ BÖLÜM", Order: p.length + 1 }]); setActiveSection(id); };
+  const updateSection = (id, u) => setSections((p) => p.map((s) => s.Id === id ? { ...s, ...u } : s));
+  const removeSection = (id) => { if (sections.length <= 1) return; setSections((p) => p.filter((s) => s.Id !== id)); setFields((p) => p.map((f) => f.SectionId === id ? { ...f, SectionId: sections.find((s) => s.Id !== id)?.Id } : f)); if (activeSection === id) setActiveSection(sections.find((s) => s.Id !== id)?.Id); };
+
+  // Field CRUD
+  const addField = (ft = 1) => { const f = createEmptyField(fields.length + 1, ft, activeSection); setFields((p) => [...p, f]); setEditingField(f.Id); };
+  const updateField = (id, u) => setFields((fs) => fs.map((f) => f.Id === id ? { ...f, ...u } : f));
+  const updateFieldConfig = (id, cu) => setFields((fs) => fs.map((f) => f.Id !== id ? f : { ...f, Config: { ...f.Config, ...cu } }));
+  const removeField = (id) => { setFields((fs) => fs.filter((f) => f.Id !== id).map((f, i) => ({ ...f, Order: i + 1 }))); if (editingField === id) setEditingField(null); };
+  const duplicateField = (id) => { const s = fields.find((f) => f.Id === id); if (!s) return; const d = JSON.parse(JSON.stringify(s)); d.Id = `field_${Date.now().toString(36)}`; d.Order = fields.length + 1; d.Label = `${s.Label || ""} (kopya)`; setFields((p) => [...p, d]); showToastMsg("Kopyalandı!"); };
+
+  // Drag
+  const handleDrop = (e, idx) => {
+    const pt = e.dataTransfer.getData("palette-type");
+    if (pt) { const f = createEmptyField(idx + 1, parseInt(pt), activeSection); const u = [...fields]; u.splice(idx, 0, f); setFields(u.map((x, i) => ({ ...x, Order: i + 1 }))); setEditingField(f.Id); }
+    else if (dragIdx !== null && dragIdx !== idx) { const u = [...fields]; const [m] = u.splice(dragIdx, 1); u.splice(idx, 0, m); setFields(u.map((x, i) => ({ ...x, Order: i + 1 }))); }
+    setDragIdx(null);
   };
 
-  const handleDragStart = (idx) => setDragIdx(idx);
-  const handleDragOver = (e, idx) => { e.preventDefault(); setDragOverIdx(idx); };
-  const handleDragEnd = () => { setDragIdx(null); setDragOverIdx(null); };
-  const handleDrop = (idx) => {
-    if (dragIdx === null || dragIdx === idx) return;
-    const u = [...fields]; const [m] = u.splice(dragIdx, 1); u.splice(idx, 0, m);
-    setFields(u.map((f, i) => Object.assign({}, f, { Order: i + 1 }))); setDragIdx(null); setDragOverIdx(null);
-  };
+  const handleShare = () => { const u = generateShareUrl(buildJson()); setShareUrl(u); setShowQR(true); if (u) navigator.clipboard?.writeText(u).then(() => showToastMsg("Link kopyalandı!")); };
+  const loadTemplate = (t) => { setSections(t.json.Sections || [{ Id: "main", Title: "FORM", Order: 1 }]); setFields(t.json.FormFields); setEditingField(null); setActiveSection(t.json.Sections?.[0]?.Id || "main"); showToastMsg(`"${t.name}" yüklendi!`); };
+  const saveAsTemplate = () => { if (!newTemplateName.trim()) return; const u = [...customTemplates, { name: newTemplateName.trim(), desc: `${fields.length} alan, ${sections.length} bölüm`, json: buildJson() }]; setCustomTemplates(u); saveCustomTemplates(u); setNewTemplateName(""); setShowSaveTemplate(false); showToastMsg("Şablon kaydedildi!"); };
+  const deleteTemplate = (i) => { const u = customTemplates.filter((_, j) => j !== i); setCustomTemplates(u); saveCustomTemplates(u); showToastMsg("Silindi!"); };
+  const getDeps = () => fields.filter((f) => f.DependsOn?.FieldId).map((f) => ({ from: f.DependsOn.FieldId, to: f.Id, fromLabel: fields.find((x) => x.Id === f.DependsOn.FieldId)?.Label || f.DependsOn.FieldId, toLabel: f.Label || f.Id, rules: Object.keys(f.DependsOn.Rules || {}), defaultVisible: f.DependsOn.DefaultVisible }));
 
-  const handleShare = () => {
-    const json = { Sections: sections, FormFields: fields };
-    const url = generateShareUrl(json);
-    setShareUrl(url); setShowQR(true);
-    if (url) navigator.clipboard?.writeText(url).then(() => showToastMsg("Link kopyalandı!"));
-  };
-
-  const loadTemplate = (tmpl) => { setSections(tmpl.json.Sections); setFields(tmpl.json.FormFields); setEditingField(null); showToastMsg('"' + tmpl.name + '" yüklendi!'); };
-
-  const fieldTypeInfo = (val) => FIELD_TYPES.find(t => t.value === val) || FIELD_TYPES[0];
-
-  const getDependencies = () => fields.filter(f => f.DependsOn?.FieldId).map(f => ({
-    from: f.DependsOn.FieldId, to: f.Id,
-    fromLabel: (fields.find(x => x.Id === f.DependsOn.FieldId)?.Label) || f.DependsOn.FieldId,
-    toLabel: f.Label || f.Id,
-    rules: f.DependsOn.Rules ? Object.keys(f.DependsOn.Rules) : [],
-    defaultVisible: f.DependsOn.DefaultVisible,
-  }));
-
+  const sectionFields = fields.filter((f) => f.SectionId === activeSection).sort((a, b) => (a.Order ?? 0) - (b.Order ?? 0));
+  const chipStyle = (bg, fg) => ({ padding: "1px 6px", borderRadius: 4, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3, background: bg, color: fg, lineHeight: "16px" });
   const tabs = [
-    { id: "builder", label: "🔨 Builder", count: fields.length },
+    { id: "builder", label: "🔨 Oluşturucu", count: fields.length },
     { id: "json", label: "{ } JSON" },
-    { id: "graph", label: "🔗 Dependencies", count: getDependencies().length },
-    { id: "templates", label: "📦 Templates" },
+    { id: "graph", label: "📱 Ekran Hiyerarşisi" },
+    { id: "templates", label: "📦 Şablonlar" },
   ];
 
-  const chipStyle = (bg, fg) => ({ padding: "1px 6px", borderRadius: 4, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, background: bg, color: fg });
+  return (
+    <div style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", background: C.bg, color: C.text, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <input ref={fileRef} type="file" accept=".json" style={{ display: "none" }} onChange={handleFileUpload} />
 
-  return React.createElement("div", { style: { minHeight: "100vh", display: "flex", flexDirection: "column" } },
-    // Header
-    React.createElement("header", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", borderBottom: "1px solid " + C.border, background: C.surface } },
-      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
-        React.createElement("span", { style: { fontSize: 28 } }, "⚡"),
-        React.createElement("h1", { style: { fontSize: 18, fontWeight: 700, margin: 0, letterSpacing: "-0.5px" } }, "Dynamic Form Builder"),
-        React.createElement("span", { style: { background: C.accent2, color: "#fff", padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 } }, "Halkbank")
-      ),
-      React.createElement("div", { style: { display: "flex", gap: 8 } },
-        React.createElement("button", { style: { background: C.accent, color: C.bg, border: "none", padding: "8px 16px", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }, onClick: handleShare }, "📤 Paylaş & QR"),
-        React.createElement("button", { style: { background: C.surface2, color: C.text, border: "1px solid " + C.border, padding: "8px 16px", borderRadius: 6, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }, onClick: () => { navigator.clipboard?.writeText(buildJson()); showToastMsg("JSON kopyalandı!"); } }, "📋 Kopyala")
-      )
-    ),
+      {/* ── HEADER ── */}
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 24px", borderBottom: `1px solid ${C.border}`, background: C.surface }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 24 }}>⚡</span>
+          <h1 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Dynamic Form Builder</h1>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button style={{ background: C.surface2, color: C.text, border: `1px solid ${C.border}`, padding: "7px 14px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }} onClick={() => fileRef.current?.click()}>📂 JSON Yükle</button>
+          <button style={{ background: C.surface2, color: C.text, border: `1px solid ${C.border}`, padding: "7px 14px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }} onClick={() => { navigator.clipboard?.writeText(JSON.stringify(buildJson(), null, 2)); showToastMsg("JSON kopyalandı!"); }}>📋 Kopyala</button>
+          <button style={{ background: C.accent, color: C.bg, border: "none", padding: "7px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }} onClick={handleShare}>📤 Paylaş</button>
+        </div>
+      </header>
 
-    // Tabs
-    React.createElement("nav", { style: { display: "flex", borderBottom: "1px solid " + C.border, background: C.surface, padding: "0 16px" } },
-      tabs.map(tab => React.createElement("button", { key: tab.id, style: Object.assign({ background: "none", border: "none", color: activeTab === tab.id ? C.accent : C.text2, padding: "12px 20px", fontSize: 13, cursor: "pointer", borderBottom: "2px solid " + (activeTab === tab.id ? C.accent : "transparent"), display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit", transition: "all 0.2s" }), onClick: () => setActiveTab(tab.id) },
-        tab.label,
-        tab.count != null && React.createElement("span", { style: { background: C.surface2, padding: "1px 6px", borderRadius: 8, fontSize: 10, fontWeight: 700 } }, tab.count)
-      ))
-    ),
+      {/* ── TABS ── */}
+      <nav style={{ display: "flex", borderBottom: `1px solid ${C.border}`, background: C.surface, padding: "0 16px" }}>
+        {tabs.map((t) => (
+          <button key={t.id} style={{ background: "none", border: "none", color: activeTab === t.id ? C.accent : C.text2, padding: "11px 18px", fontSize: 12, cursor: "pointer", borderBottom: `2px solid ${activeTab === t.id ? C.accent : "transparent"}`, display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit", transition: "all 0.15s" }} onClick={() => setActiveTab(t.id)}>
+            {t.label}
+            {t.count != null && <span style={{ background: C.surface2, padding: "1px 6px", borderRadius: 8, fontSize: 10, fontWeight: 700 }}>{t.count}</span>}
+          </button>
+        ))}
+      </nav>
 
-    // Content
-    React.createElement("div", { style: { flex: 1, overflow: "hidden" } },
+      {/* ── CONTENT ── */}
+      <div style={{ flex: 1, overflow: "hidden" }}>
 
-      // BUILDER
-      activeTab === "builder" && React.createElement("div", { style: { display: "flex", height: "calc(100vh - 120px)" } },
-        // Left: field list
-        React.createElement("div", { style: { width: 400, borderRight: "1px solid " + C.border, padding: 16, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 } },
-          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 } },
-            React.createElement("input", { style: { background: C.surface2, border: "1px solid " + C.border, color: C.accent, padding: "8px 12px", borderRadius: 6, fontSize: 14, fontWeight: 700, flex: 1, outline: "none", fontFamily: "inherit" }, value: sections[0]?.Title || "", onChange: e => setSections([Object.assign({}, sections[0], { Title: e.target.value })]), placeholder: "Section başlığı" }),
-            React.createElement("span", { style: { color: C.text2, fontSize: 12, marginLeft: 8, whiteSpace: "nowrap" } }, fields.length + " alan")
-          ),
+        {/* ═══ BUILDER ═══ */}
+        {activeTab === "builder" && (
+          <div style={{ display: "flex", height: "calc(100vh - 108px)" }}>
+            <div style={{ width: 420, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", background: C.bg }}>
+              <ComponentPalette onAddField={addField} />
+              {/* Section tabs */}
+              <div style={{ display: "flex", alignItems: "center", padding: "0 12px", borderBottom: `1px solid ${C.border}`, background: C.surface, gap: 2, overflowX: "auto" }}>
+                {sections.map((s) => (
+                  <div key={s.Id} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <button style={{ padding: "6px 14px", borderRadius: "6px 6px 0 0", fontSize: 11, fontWeight: 700, cursor: "pointer", border: "1px solid transparent", borderBottom: "none", background: activeSection === s.Id ? C.surface : "transparent", color: activeSection === s.Id ? C.accent : C.text2, fontFamily: "inherit", textTransform: "uppercase", letterSpacing: 0.5 }} onClick={() => setActiveSection(s.Id)}>
+                      {s.Title || s.Id} <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 4 }}>{fields.filter((f) => f.SectionId === s.Id).length}</span>
+                    </button>
+                    {sections.length > 1 && <button style={{ background: "none", border: "none", color: C.text2, fontSize: 10, cursor: "pointer", padding: "2px 4px" }} onClick={() => removeSection(s.Id)}>✕</button>}
+                  </div>
+                ))}
+                <button style={{ background: "none", border: `1px dashed ${C.accent}50`, color: C.accent, padding: "4px 8px", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit", marginLeft: 4 }} onClick={addSection}>+</button>
+              </div>
+              {/* Section title */}
+              <div style={{ padding: "8px 16px", borderBottom: `1px solid ${C.border}`, background: C.surface }}>
+                <input style={{ background: C.surface2, border: `1px solid ${C.border}`, color: C.accent, padding: "6px 10px", borderRadius: 6, fontSize: 13, fontWeight: 700, width: "100%", outline: "none", fontFamily: "inherit" }} value={sections.find((s) => s.Id === activeSection)?.Title || ""} onChange={(e) => updateSection(activeSection, { Title: e.target.value })} placeholder="Bölüm başlığı" />
+              </div>
+              {/* Field list */}
+              <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", display: "flex", flexDirection: "column", gap: 4 }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const pt = e.dataTransfer.getData("palette-type"); if (pt) addField(parseInt(pt)); }}>
+                {sectionFields.length === 0 && (
+                  <div style={{ textAlign: "center", padding: "36px 16px", border: `2px dashed ${C.border}`, borderRadius: 10, marginTop: 8 }}>
+                    <div style={{ fontSize: 36 }}>📋</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginTop: 8 }}>Bu bölüm boş</div>
+                    <div style={{ fontSize: 11, color: C.text2, marginTop: 4 }}>Yukarıdan sürükleyin veya tıklayın</div>
+                  </div>
+                )}
+                {sectionFields.map((field, idx) => {
+                  const info = fieldTypeInfo(field.FieldType);
+                  const isActive = editingField === field.Id;
+                  const gIdx = fields.indexOf(field);
+                  return (
+                    <div
+                      key={field.Id} draggable
+                      onDragStart={() => setDragIdx(gIdx)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDragEnd={() => setDragIdx(null)}
+                      onDrop={(e) => handleDrop(e, gIdx)}
+                      style={{ background: isActive ? C.surface2 : C.surface, border: `1px solid ${isActive ? C.accent : C.border}`, borderRadius: 8, padding: "8px 10px", cursor: "pointer", transition: "all 0.12s", opacity: dragIdx === gIdx ? 0.4 : 1 }}
+                      onClick={() => setEditingField(isActive ? null : field.Id)}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ color: C.text2, fontSize: 14, cursor: "grab" }}>⠿</span>
+                        <span style={{ fontSize: 16, flexShrink: 0 }}>{info.icon}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{field.Label || "(İsimsiz)"}</div>
+                          <div style={{ fontSize: 9, color: C.text2, marginTop: 1 }}>{info.label} · {field.Id}</div>
+                        </div>
+                        <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
+                          {field.Config?.Required && <span style={chipStyle(C.warning + "25", C.warning)}>Zorunlu</span>}
+                          {field.Config?.Visible === false && <span style={chipStyle(C.text2 + "25", C.text2)}>Gizli</span>}
+                          {field.DependsOn && <span style={chipStyle(C.blue + "25", C.blue)}>Bağımlı</span>}
+                        </div>
+                        <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                          <button style={{ background: "none", border: "none", fontSize: 12, cursor: "pointer", padding: 2, opacity: 0.5 }} onClick={(e) => { e.stopPropagation(); duplicateField(field.Id); }}>📑</button>
+                          <button style={{ background: "none", border: "none", fontSize: 12, cursor: "pointer", padding: 2, opacity: 0.7 }} onClick={(e) => { e.stopPropagation(); removeField(field.Id); }}>🗑</button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Editor panel */}
+            <div style={{ flex: 1, overflowY: "auto", background: C.bg }}>
+              {editingField ? (
+                <FieldEditor field={fields.find((f) => f.Id === editingField)} allFields={fields} sections={sections} onUpdate={updateField} onUpdateConfig={updateFieldConfig} onClose={() => setEditingField(null)} />
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", textAlign: "center", padding: 48, opacity: 0.7 }}>
+                  <div style={{ fontSize: 40 }}>👈</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, marginTop: 12 }}>Bir alan seçin</div>
+                  <div style={{ fontSize: 12, color: C.text2, marginTop: 4 }}>Soldaki listeden alana tıklayın</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
-          fields.length === 0 && React.createElement("div", { style: { textAlign: "center", padding: "48px 16px" } },
-            React.createElement("div", { style: { fontSize: 48 } }, "📋"),
-            React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginTop: 12 } }, "Henüz alan eklenmedi"),
-            React.createElement("div", { style: { fontSize: 13, color: C.text2, marginTop: 4 } }, "Aşağıdaki butonu veya şablonları kullanın")
-          ),
+        {/* ═══ JSON ═══ */}
+        {activeTab === "json" && (
+          <div style={{ height: "calc(100vh - 108px)", display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", gap: 8, padding: "8px 16px", alignItems: "center", background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+              <button style={{ background: C.surface2, border: `1px solid ${C.border}`, color: C.text, padding: "5px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }} onClick={() => { try { setJsonText(JSON.stringify(JSON.parse(jsonText), null, 2)); showToastMsg("Formatlandı!"); } catch (e) { setJsonError(e.message); } }}>✨ Formatla</button>
+              <button style={{ background: C.surface2, border: `1px solid ${C.border}`, color: C.text, padding: "5px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }} onClick={() => { navigator.clipboard?.writeText(jsonText); showToastMsg("Kopyalandı!"); }}>📋 Kopyala</button>
+              <button style={{ background: C.surface2, border: `1px solid ${C.border}`, color: C.text, padding: "5px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }} onClick={() => fileRef.current?.click()}>📂 Yükle</button>
+              <span style={{ marginLeft: "auto", fontSize: 11, color: jsonError ? C.danger : C.success }}>{jsonError ? `⚠ ${jsonError}` : `● Otomatik eşitleme · ${fields.length} alan · ${sections.length} bölüm`}</span>
+            </div>
+            <JsonCodeEditor value={jsonText} onChange={handleJsonEdit} error={jsonError} />
+          </div>
+        )}
 
-          fields.map((field, idx) => {
-            const info = fieldTypeInfo(field.FieldType);
-            const isActive = editingField === field.Id;
-            return React.createElement("div", {
-              key: field.Id, draggable: true,
-              onDragStart: () => handleDragStart(idx), onDragOver: e => handleDragOver(e, idx), onDragEnd: handleDragEnd, onDrop: () => handleDrop(idx),
-              style: Object.assign({ background: C.surface, border: "1px solid " + (isActive ? C.accent : dragOverIdx === idx ? C.accent2 : C.border), borderRadius: 8, padding: "10px 12px", cursor: "pointer", transition: "all 0.15s", opacity: dragIdx === idx ? 0.4 : 1, borderStyle: dragOverIdx === idx ? "dashed" : "solid" }, isActive ? { boxShadow: "0 0 0 1px " + C.accent + "40" } : {}),
-              onClick: () => setEditingField(isActive ? null : field.Id)
-            },
-              React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
-                React.createElement("span", { style: { color: C.text2, fontSize: 16, cursor: "grab" } }, "⠿"),
-                React.createElement("span", { style: { background: C.surface2, color: C.text2, width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 } }, field.Order),
-                React.createElement("span", { style: { fontSize: 18, flexShrink: 0 } }, info.icon),
-                React.createElement("div", { style: { flex: 1, minWidth: 0 } },
-                  React.createElement("div", { style: { fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, field.Label || "(İsimsiz)"),
-                  React.createElement("div", { style: { fontSize: 10, color: C.text2 } }, info.label + " · " + field.Id)
-                ),
-                React.createElement("div", { style: { display: "flex", gap: 4, flexShrink: 0 } },
-                  field.Config?.Required && React.createElement("span", { style: chipStyle(C.warning + "30", C.warning) }, "Required"),
-                  field.Config?.Visible === false && React.createElement("span", { style: chipStyle(C.text2 + "30", C.text2) }, "Hidden"),
-                  field.DependsOn && React.createElement("span", { style: chipStyle(C.blue + "30", C.blue) }, "Dep"),
-                  field.Config?.Options?.length > 0 && React.createElement("span", { style: chipStyle(C.accent2 + "30", C.accent2) }, field.Config.Options.length + " opt")
-                ),
-                React.createElement("div", { style: { display: "flex", gap: 2, flexShrink: 0 } },
-                  React.createElement("button", { style: { background: "none", border: "none", fontSize: 14, cursor: "pointer", padding: 4, opacity: 0.6 }, onClick: e => { e.stopPropagation(); duplicateField(field.Id); }, title: "Kopyala" }, "📑"),
-                  React.createElement("button", { style: { background: "none", border: "none", fontSize: 14, cursor: "pointer", padding: 4, opacity: 0.8 }, onClick: e => { e.stopPropagation(); removeField(field.Id); }, title: "Sil" }, "🗑")
-                )
-              )
+        {/* ═══ SCREEN HIERARCHY ═══ */}
+        {activeTab === "graph" && (() => {
+          const fi = fieldTypeInfo;
+          const getField = (id) => fields.find(x => x.Id === id);
+
+          // Group fields by section
+          const sectionGroups = sections.map(sec => ({
+            ...sec,
+            fields: fields.filter(f => f.SectionId === sec.Id).sort((a, b) => (a.Order ?? 0) - (b.Order ?? 0)),
+          }));
+
+          // Find all parent fields that have children depending on them
+          const parentMap = {};
+          fields.forEach(f => {
+            if (!f.DependsOn?.FieldId) return;
+            const pid = f.DependsOn.FieldId;
+            if (!parentMap[pid]) parentMap[pid] = [];
+            parentMap[pid].push(f);
+          });
+
+          // Collect all unique scenarios across the form
+          // A scenario = a combination of parent selections
+          // For simplicity, show scenarios per-parent (not combinatorial)
+          const allParents = Object.keys(parentMap).map(id => getField(id)).filter(Boolean);
+
+          // For a given parent value selection, determine field visibility
+          const getFieldState = (field, parentSelections) => {
+            if (!field.DependsOn?.FieldId) {
+              // No dependency - always show with base config
+              return { visible: field.Config?.Visible !== false, required: !!field.Config?.Required, source: "static" };
+            }
+            const parentVal = parentSelections[field.DependsOn.FieldId];
+            if (parentVal === undefined || parentVal === null) {
+              // Parent not selected - use default
+              return { visible: !!field.DependsOn.DefaultVisible, required: false, source: "default" };
+            }
+            const rule = field.DependsOn.Rules?.[parentVal];
+            if (rule) {
+              return {
+                visible: rule.Visible !== false,
+                required: !!rule.Required,
+                maxLength: rule.MaxLength,
+                placeholder: rule.Placeholder,
+                source: "rule",
+              };
+            }
+            return { visible: !!field.DependsOn.DefaultVisible, required: false, source: "default" };
+          };
+
+          // Build screen scenarios: for each parent, generate screens per option
+          const buildScreens = () => {
+            if (allParents.length === 0) return [{ label: "Tek Ekran", selections: {} }];
+
+            const screens = [{ label: "Başlangıç (seçim yok)", selections: {}, isDefault: true }];
+
+            allParents.forEach(parent => {
+              const opts = parent.Config?.Options || [];
+              // Non-option parents (input-based deps)
+              if (opts.length === 0) {
+                const ruleKeys = [...new Set((parentMap[parent.Id] || []).flatMap(ch => Object.keys(ch.DependsOn?.Rules || {})))];
+                ruleKeys.forEach(key => {
+                  screens.push({ label: `${parent.Label || parent.Id} = "${key}"`, selections: { [parent.Id]: key }, trigger: parent });
+                });
+              } else {
+                opts.forEach(opt => {
+                  screens.push({ label: `${parent.Label || parent.Id} → ${opt.Label || opt.Value}`, selections: { [parent.Id]: opt.Value }, trigger: parent, optLabel: opt.Label || opt.Value });
+                });
+              }
+            });
+
+            return screens;
+          };
+
+          const screens = buildScreens();
+          const hasDeps = allParents.length > 0;
+          const totalScreens = screens.length;
+
+          // Mini phone mockup field renderer
+          const renderMockField = (field, state, isParent) => {
+            const info = fi(field.FieldType);
+            const vis = state.visible;
+            const bg = isParent ? "#1e293b" : vis ? "#1a1a2e" : "#111";
+            const borderCol = isParent ? C.accent2 : vis ? (state.source === "rule" ? C.accent : C.border) : C.border;
+
+            return (
+              <div key={field.Id} style={{
+                padding: "8px 10px", borderRadius: 8, marginBottom: 4,
+                background: bg, border: `1px solid ${borderCol}`,
+                opacity: vis ? 1 : 0.25, transition: "all 0.2s",
+                display: "flex", alignItems: "center", gap: 8,
+              }}>
+                <span style={{ fontSize: 13, flexShrink: 0 }}>{info.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {field.Label || field.Id}
+                  </div>
+                  {vis && state.placeholder && (
+                    <div style={{ fontSize: 9, color: C.text2, marginTop: 1 }}>"{state.placeholder}"</div>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
+                  {isParent && <span style={{ fontSize: 8, padding: "1px 5px", background: C.accent2 + "30", color: C.accent2, borderRadius: 3 }}>Tetikleyici</span>}
+                  {vis && state.required && <span style={{ fontSize: 8, padding: "1px 5px", background: C.warning + "30", color: C.warning, borderRadius: 3 }}>Zorunlu</span>}
+                  {vis && state.maxLength && <span style={{ fontSize: 8, padding: "1px 5px", background: C.blue + "30", color: C.blue, borderRadius: 3 }}>max:{state.maxLength}</span>}
+                  {!vis && <span style={{ fontSize: 8, padding: "1px 5px", background: C.text2 + "20", color: C.text2, borderRadius: 3 }}>Gizli</span>}
+                </div>
+              </div>
             );
-          }),
+          };
 
-          React.createElement("button", { style: { background: "none", border: "2px dashed " + C.accent + "60", color: C.accent, padding: 14, borderRadius: 8, fontSize: 14, cursor: "pointer", fontWeight: 600, fontFamily: "inherit", marginTop: 8 }, onClick: addField }, "+ Alan Ekle")
-        ),
+          return (
+            <div style={{ padding: 24, overflowY: "auto", height: "calc(100vh - 108px)" }}>
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.accent }}>Ekran Hiyerarşisi</h3>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <span style={{ fontSize: 11, padding: "4px 10px", background: C.surface2, borderRadius: 6, color: C.text2 }}>{totalScreens} ekran durumu</span>
+                  <span style={{ fontSize: 11, padding: "4px 10px", background: C.surface2, borderRadius: 6, color: C.text2 }}>{fields.length} alan</span>
+                </div>
+              </div>
+              <p style={{ fontSize: 11, color: C.text2, margin: "0 0 20px" }}>
+                {hasDeps
+                  ? "Her seçenek değerine göre ekranın nasıl göründüğünü karşılaştırın."
+                  : "Henüz bağımlılık yok. Alanlara DependsOn ekleyerek farklı ekran durumları oluşturun."}
+              </p>
 
-        // Right: editor
-        React.createElement("div", { style: { flex: 1, overflowY: "auto" } },
-          editingField
-            ? React.createElement(FieldEditor, { field: fields.find(f => f.Id === editingField), allFields: fields, onUpdate: updateField, onUpdateConfig: updateFieldConfig, onClose: () => setEditingField(null) })
-            : React.createElement("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", textAlign: "center", padding: 48 } },
-                React.createElement("div", { style: { fontSize: 48 } }, "👈"),
-                React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginTop: 12 } }, "Alan seçin veya ekleyin"),
-                React.createElement("div", { style: { fontSize: 13, color: C.text2, marginTop: 4 } }, "Soldaki listeden bir alana tıklayarak düzenlemeye başlayın")
-              )
-        )
-      ),
+              {/* Screen cards grid */}
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(260px, 1fr))`, gap: 16 }}>
+                {screens.map((screen, si) => {
+                  // Count visible fields for this scenario
+                  const allFieldStates = fields.map(f => ({
+                    field: f,
+                    state: getFieldState(f, screen.selections),
+                    isParent: !!parentMap[f.Id],
+                  }));
+                  const visibleCount = allFieldStates.filter(fs => fs.state.visible).length;
+                  const hiddenCount = allFieldStates.filter(fs => !fs.state.visible).length;
 
-      // JSON
-      activeTab === "json" && React.createElement("div", { style: { height: "calc(100vh - 120px)", display: "flex", flexDirection: "column", padding: 16 } },
-        React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 8, alignItems: "center" } },
-          React.createElement("button", { style: { background: C.surface2, border: "1px solid " + C.border, color: C.text, padding: "6px 14px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }, onClick: () => { try { setJsonText(JSON.stringify(JSON.parse(jsonText), null, 2)); showToastMsg("Formatlandı!"); } catch(e) { setJsonError(e.message); } } }, "✨ Formatla"),
-          React.createElement("button", { style: { background: C.surface2, border: "1px solid " + C.border, color: C.text, padding: "6px 14px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }, onClick: applyJson }, "▶ Uygula"),
-          React.createElement("button", { style: { background: C.surface2, border: "1px solid " + C.border, color: C.text, padding: "6px 14px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }, onClick: () => { navigator.clipboard?.writeText(jsonText); showToastMsg("Kopyalandı!"); } }, "📋 Kopyala"),
-          jsonError && React.createElement("span", { style: { color: C.danger, fontSize: 12, marginLeft: 8 } }, "⚠ " + jsonError)
-        ),
-        React.createElement("textarea", { style: { flex: 1, background: C.surface, border: "1px solid " + C.border, color: C.accent, padding: 16, borderRadius: 8, fontSize: 13, fontFamily: "'JetBrains Mono', monospace", resize: "none", outline: "none", lineHeight: 1.6, tabSize: 2 }, value: jsonText, onChange: e => { setJsonText(e.target.value); setJsonError(null); }, spellCheck: false, placeholder: "JSON yapıştırın..." })
-      ),
+                  return (
+                    <div key={si} style={{
+                      background: C.surface, border: `1px solid ${screen.isDefault ? C.border : C.accent + "30"}`,
+                      borderRadius: 16, overflow: "hidden", display: "flex", flexDirection: "column",
+                    }}>
+                      {/* Screen label */}
+                      <div style={{ padding: "12px 14px", borderBottom: `1px solid ${C.border}`, background: screen.isDefault ? C.surface2 : C.surface }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: screen.isDefault ? C.text2 : C.accent }}>
+                          {screen.isDefault ? "○ " : "● "}{screen.label}
+                        </div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <span style={{ fontSize: 9, padding: "2px 6px", background: C.success + "15", color: C.success, borderRadius: 4 }}>{visibleCount} görünür</span>
+                          {hiddenCount > 0 && <span style={{ fontSize: 9, padding: "2px 6px", background: C.text2 + "15", color: C.text2, borderRadius: 4 }}>{hiddenCount} gizli</span>}
+                        </div>
+                      </div>
 
-      // GRAPH
-      activeTab === "graph" && React.createElement("div", { style: { padding: 24, overflowY: "auto", height: "calc(100vh - 120px)" } },
-        React.createElement("h3", { style: { margin: "0 0 20px", fontSize: 16, fontWeight: 700, color: C.accent } }, "Dependency Grafiği"),
-        getDependencies().length === 0
-          ? React.createElement("div", { style: { textAlign: "center", padding: 48 } },
-              React.createElement("div", { style: { fontSize: 48 } }, "🔗"),
-              React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginTop: 12 } }, "Dependency yok"),
-              React.createElement("div", { style: { fontSize: 13, color: C.text2, marginTop: 4 } }, "Field'lara DependsOn ekleyerek bağlantılar oluşturun")
-            )
-          : React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
-              getDependencies().map((dep, i) =>
-                React.createElement("div", { key: i, style: { background: C.surface, border: "1px solid " + C.border, borderRadius: 12, padding: 20 } },
-                  React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 16, justifyContent: "center" } },
-                    React.createElement("div", { style: { background: C.surface2, borderRadius: 10, padding: "14px 20px", textAlign: "center", minWidth: 130, border: "1px solid " + C.border } },
-                      React.createElement("div", { style: { fontSize: 24 } }, "📋"),
-                      React.createElement("div", { style: { fontWeight: 700, fontSize: 14, marginTop: 4 } }, dep.fromLabel),
-                      React.createElement("div", { style: { fontSize: 10, color: C.text2, marginTop: 2 } }, dep.from)
-                    ),
-                    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4 } },
-                      React.createElement("div", { style: { width: 40, height: 2, background: "linear-gradient(90deg, " + C.accent2 + ", " + C.accent + ")" } }),
-                      React.createElement("div", { style: { color: C.accent, fontSize: 14 } }, "▶")
-                    ),
-                    React.createElement("div", { style: { background: C.surface2, borderRadius: 10, padding: "14px 20px", textAlign: "center", minWidth: 130, border: "1px solid " + C.border } },
-                      React.createElement("div", { style: { fontSize: 24 } }, "🎯"),
-                      React.createElement("div", { style: { fontWeight: 700, fontSize: 14, marginTop: 4 } }, dep.toLabel),
-                      React.createElement("div", { style: { fontSize: 10, color: C.text2, marginTop: 2 } }, dep.to)
-                    )
-                  ),
-                  React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", justifyContent: "center" } },
-                    React.createElement("span", { style: { fontSize: 11, color: C.text2, padding: "3px 8px", background: C.surface2, borderRadius: 4 } }, "Default: " + (dep.defaultVisible ? "Visible" : "Hidden")),
-                    dep.rules.map(r => React.createElement("span", { key: r, style: { fontSize: 11, color: C.accent, padding: "3px 8px", background: C.accent + "15", borderRadius: 4, border: "1px solid " + C.accent + "30" } }, '"' + r + '"'))
-                  )
-                )
-              )
-            )
-      ),
+                      {/* Phone mockup */}
+                      <div style={{ padding: "10px 10px 14px", flex: 1 }}>
+                        {/* Phone notch */}
+                        <div style={{ textAlign: "center", marginBottom: 8 }}>
+                          <div style={{ display: "inline-block", width: 40, height: 3, borderRadius: 2, background: C.border }} />
+                        </div>
 
-      // TEMPLATES
-      activeTab === "templates" && React.createElement("div", { style: { padding: 24, overflowY: "auto", height: "calc(100vh - 120px)" } },
-        React.createElement("h3", { style: { margin: "0 0 20px", fontSize: 16, fontWeight: 700, color: C.accent } }, "Hazır Şablonlar"),
-        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 } },
-          TEMPLATES.map((tmpl, i) =>
-            React.createElement("div", { key: i, style: { background: C.surface, border: "1px solid " + C.border, borderRadius: 12, padding: 20, cursor: "pointer", transition: "all 0.2s" }, onClick: () => loadTemplate(tmpl) },
-              React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginBottom: 4 } }, tmpl.name),
-              React.createElement("div", { style: { fontSize: 11, color: C.text2, marginBottom: 12 } }, tmpl.desc || (tmpl.json.FormFields.length + " alan")),
-              React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 } },
-                tmpl.json.FormFields.map(f => React.createElement("span", { key: f.Id, style: { fontSize: 11, padding: "3px 8px", background: C.surface2, borderRadius: 4, color: C.text } }, fieldTypeInfo(f.FieldType).icon + " " + f.Label))
-              ),
-              React.createElement("button", { style: { background: C.accent, color: C.bg, border: "none", padding: "8px 16px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" } }, "Yükle →")
-            )
-          )
-        )
-      )
-    ),
+                        {/* Sections & fields */}
+                        {sectionGroups.map(sec => {
+                          const secFieldStates = allFieldStates.filter(fs => fs.field.SectionId === sec.Id);
+                          const anyVisible = secFieldStates.some(fs => fs.state.visible);
+                          if (secFieldStates.length === 0) return null;
 
-    // QR Modal
-    showQR && shareUrl && React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(8px)" }, onClick: () => setShowQR(false) },
-      React.createElement("div", { style: { background: C.surface, borderRadius: 16, padding: 32, textAlign: "center", maxWidth: 420, width: "90%", border: "1px solid " + C.border }, onClick: e => e.stopPropagation() },
-        React.createElement("h3", { style: { margin: "0 0 8px", fontSize: 20, color: C.accent } }, "📱 QR ile Paylaş"),
-        React.createElement("p", { style: { margin: "0 0 20px", fontSize: 13, color: C.text2 } }, "Bu QR kodu Android uygulamasında okutarak formu test edin"),
-        React.createElement("img", { src: generateQR(shareUrl, 250), alt: "QR", style: { width: 250, height: 250, borderRadius: 12, marginBottom: 20 } }),
-        React.createElement("div", { style: { display: "flex", gap: 4, marginBottom: 16 } },
-          React.createElement("input", { style: { flex: 1, background: C.bg, border: "1px solid " + C.border, color: C.accent, padding: "8px 10px", borderRadius: 6, fontSize: 11, outline: "none", fontFamily: "inherit" }, value: shareUrl, readOnly: true, onClick: e => e.target.select() }),
-          React.createElement("button", { style: { background: C.surface2, border: "1px solid " + C.border, padding: 8, borderRadius: 6, cursor: "pointer", fontSize: 14 }, onClick: () => { navigator.clipboard?.writeText(shareUrl); showToastMsg("Kopyalandı!"); } }, "📋")
-        ),
-        React.createElement("button", { style: { background: C.surface2, border: "1px solid " + C.border, color: C.text, padding: "8px 24px", borderRadius: 6, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }, onClick: () => setShowQR(false) }, "Kapat")
-      )
-    ),
+                          return (
+                            <div key={sec.Id} style={{ marginBottom: 8 }}>
+                              {/* Section title */}
+                              <div style={{
+                                fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1,
+                                color: anyVisible ? C.accent : C.text2, padding: "4px 6px", marginBottom: 3,
+                                opacity: anyVisible ? 1 : 0.4,
+                              }}>
+                                {sec.Title || sec.Id}
+                              </div>
+                              {/* Fields */}
+                              {secFieldStates.map(({ field, state, isParent }) => {
+                                // For parent field in this scenario, mark the selected option
+                                const isSelected = screen.selections[field.Id] != null;
+                                return renderMockField(field, { ...state, visible: state.visible || isParent }, isParent && isSelected);
+                              })}
+                            </div>
+                          );
+                        })}
 
-    // Toast
-    toast && React.createElement("div", { style: { position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: C.accent, color: C.bg, padding: "10px 24px", borderRadius: 8, fontSize: 13, fontWeight: 700, zIndex: 1001, animation: "fadeIn 0.3s", fontFamily: "inherit" } }, toast)
+                        {/* Phone home bar */}
+                        <div style={{ textAlign: "center", marginTop: 8 }}>
+                          <div style={{ display: "inline-block", width: 32, height: 3, borderRadius: 2, background: C.border }} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Dependency summary table */}
+              {hasDeps && (
+                <div style={{ marginTop: 28 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: C.text2, marginBottom: 10 }}>
+                    Bağımlılık Özeti
+                  </div>
+                  <div style={{ background: C.surface, borderRadius: 10, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+                    {allParents.map(parent => {
+                      const pInfo = fi(parent.FieldType);
+                      const children = parentMap[parent.Id];
+                      const opts = parent.Config?.Options || [];
+                      return (
+                        <div key={parent.Id} style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                            <span style={{ fontSize: 16 }}>{pInfo.icon}</span>
+                            <span style={{ fontWeight: 700, fontSize: 13 }}>{parent.Label || parent.Id}</span>
+                            <span style={{ fontSize: 10, color: C.text2 }}>({opts.length} seçenek)</span>
+                          </div>
+                          {/* Table: option → which children appear */}
+                          <div style={{ display: "grid", gridTemplateColumns: `100px repeat(${children.length}, 1fr)`, gap: 1, fontSize: 10, background: C.border, borderRadius: 6, overflow: "hidden" }}>
+                            {/* Header row */}
+                            <div style={{ background: C.surface2, padding: "6px 8px", fontWeight: 700, color: C.text2 }}>Seçenek</div>
+                            {children.map(ch => (
+                              <div key={ch.Id} style={{ background: C.surface2, padding: "6px 8px", fontWeight: 700, textAlign: "center", color: C.text }}>
+                                {fi(ch.FieldType).icon} {ch.Label || ch.Id}
+                              </div>
+                            ))}
+                            {/* Default row */}
+                            <div style={{ background: C.bg, padding: "6px 8px", color: C.text2, fontStyle: "italic" }}>Seçim yok</div>
+                            {children.map(ch => {
+                              const vis = !!ch.DependsOn?.DefaultVisible;
+                              return (
+                                <div key={ch.Id} style={{ background: C.bg, padding: "6px 8px", textAlign: "center", color: vis ? C.success : C.text2 }}>
+                                  {vis ? "👁" : "—"}
+                                </div>
+                              );
+                            })}
+                            {/* Option rows */}
+                            {opts.map(opt => (
+                              [
+                                <div key={`l-${opt.Value}`} style={{ background: C.bg, padding: "6px 8px", color: C.accent, fontWeight: 600 }}>
+                                  {opt.Label || opt.Value}
+                                </div>,
+                                ...children.map(ch => {
+                                  const rule = ch.DependsOn?.Rules?.[opt.Value];
+                                  const vis = rule ? rule.Visible !== false : !!ch.DependsOn?.DefaultVisible;
+                                  const req = rule?.Required;
+                                  return (
+                                    <div key={`${opt.Value}-${ch.Id}`} style={{ background: C.bg, padding: "6px 8px", textAlign: "center", color: vis ? C.success : C.text2 }}>
+                                      {vis ? (req ? "👁 ✱" : "👁") : "—"}
+                                    </div>
+                                  );
+                                }),
+                              ]
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* ═══ TEMPLATES ═══ */}
+        {activeTab === "templates" && (
+          <div style={{ padding: 24, overflowY: "auto", height: "calc(100vh - 108px)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.accent }}>Şablonlar</h3>
+              <button style={{ background: C.accent, color: C.bg, border: "none", padding: "7px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }} onClick={() => setShowSaveTemplate(!showSaveTemplate)}>{showSaveTemplate ? "İptal" : "+ Şablon Kaydet"}</button>
+            </div>
+            {showSaveTemplate && (
+              <div style={{ background: C.surface, border: `1px solid ${C.accent}40`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, color: C.text, padding: "8px 12px", borderRadius: 6, fontSize: 13, outline: "none", fontFamily: "inherit" }} value={newTemplateName} onChange={(e) => setNewTemplateName(e.target.value)} placeholder="Şablon adı..." onKeyDown={(e) => e.key === "Enter" && saveAsTemplate()} />
+                  <button style={{ background: C.accent, color: C.bg, border: "none", padding: "8px 18px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }} onClick={saveAsTemplate}>Kaydet</button>
+                </div>
+                <div style={{ fontSize: 10, color: C.text2, marginTop: 6 }}>{fields.length} alan, {sections.length} bölüm kaydedilecek</div>
+              </div>
+            )}
+            {customTemplates.length > 0 && (
+              <>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: C.text2, marginBottom: 10 }}>📌 Kaydedilen Şablonlar</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12, marginBottom: 20 }}>
+                  {customTemplates.map((t, i) => (
+                    <div key={`c${i}`} style={{ background: C.surface, border: `1px solid ${C.accent}30`, borderRadius: 10, padding: 16, position: "relative" }}>
+                      <button style={{ position: "absolute", top: 8, right: 8, background: C.danger + "20", border: "none", color: C.danger, width: 22, height: 22, borderRadius: 4, cursor: "pointer", fontSize: 10 }} onClick={() => deleteTemplate(i)}>✕</button>
+                      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{t.name}</div>
+                      <div style={{ fontSize: 10, color: C.text2, marginBottom: 10 }}>{t.desc}</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+                        {t.json.FormFields.slice(0, 6).map((f) => <span key={f.Id} style={{ fontSize: 10, padding: "2px 6px", background: C.surface2, borderRadius: 4 }}>{fieldTypeInfo(f.FieldType).icon} {f.Label || f.Id}</span>)}
+                      </div>
+                      <button style={{ background: C.accent, color: C.bg, border: "none", padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }} onClick={() => loadTemplate(t)}>Yükle →</button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: C.text2, marginBottom: 10 }}>📦 Hazır Şablonlar</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+              {BUILTIN_TEMPLATES.map((t, i) => (
+                <div key={`b${i}`} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, cursor: "pointer" }} onClick={() => loadTemplate(t)}>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{t.name}</div>
+                  <div style={{ fontSize: 10, color: C.text2, marginBottom: 10 }}>{t.desc}</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+                    {t.json.FormFields.slice(0, 5).map((f) => <span key={f.Id} style={{ fontSize: 10, padding: "2px 6px", background: C.surface2, borderRadius: 4 }}>{fieldTypeInfo(f.FieldType).icon} {f.Label || f.Id}</span>)}
+                  </div>
+                  <button style={{ background: C.accent, color: C.bg, border: "none", padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Yükle →</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* QR Modal */}
+      {showQR && shareUrl && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(6px)" }} onClick={() => setShowQR(false)}>
+          <div style={{ background: C.surface, borderRadius: 16, padding: 28, textAlign: "center", maxWidth: 400, width: "90%", border: `1px solid ${C.border}` }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: "0 0 8px", fontSize: 18, color: C.accent }}>📱 QR ile Paylaş</h3>
+            <p style={{ margin: "0 0 16px", fontSize: 12, color: C.text2 }}>Developer Options içerisinden QR okutarak test edin</p>
+            <img src={generateQR(shareUrl, 220)} alt="QR" style={{ width: 220, height: 220, borderRadius: 12, marginBottom: 16 }} />
+            <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+              <input style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, color: C.accent, padding: "7px 10px", borderRadius: 6, fontSize: 10, outline: "none", fontFamily: "inherit" }} value={shareUrl} readOnly onClick={(e) => e.target.select()} />
+              <button style={{ background: C.surface2, border: `1px solid ${C.border}`, padding: 7, borderRadius: 6, cursor: "pointer", fontSize: 12 }} onClick={() => { navigator.clipboard?.writeText(shareUrl); showToastMsg("Kopyalandı!"); }}>📋</button>
+            </div>
+            <button style={{ background: C.surface2, border: `1px solid ${C.border}`, color: C.text, padding: "7px 20px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }} onClick={() => setShowQR(false)}>Kapat</button>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && <div style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", background: C.accent, color: C.bg, padding: "8px 20px", borderRadius: 8, fontSize: 12, fontWeight: 700, zIndex: 1001, fontFamily: "inherit" }}>{toast}</div>}
+    </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
-  </script>
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(DynamicFormBuilder));
+</script>
 </body>
 </html>
