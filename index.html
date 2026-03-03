@@ -1467,7 +1467,14 @@ function DynamicFormBuilder() {
       showToastMsg("PR açıldı!");
       window.open(prUrl, "_blank");
     } catch (err) {
-      showToastMsg(`PR hatası: ${err.message}`);
+      if (err.message.includes("Bad credentials") || err.message.includes("401")) {
+        setGhToken("");
+        setGitHubToken("");
+        setShowTokenInput(true);
+        showToastMsg("Token geçersiz, lütfen tekrar girin");
+      } else {
+        showToastMsg(`PR hatası: ${err.message}`);
+      }
     }
     setPrLoading(false);
   };
@@ -1896,6 +1903,9 @@ function DynamicFormBuilder() {
                 <div style={{ fontSize: 10, color: C.text2, marginTop: 6 }}>
                   {fields.length} alan, {sections.length} bölüm kaydedilecek
                   {getGitHubRepo() && <span> · PR: {getGitHubRepo().owner}/{getGitHubRepo().repo}</span>}
+                  {getGitHubRepo() && ghToken && !showTokenInput && (
+                    <span style={{ color: C.accent2, cursor: "pointer", marginLeft: 4 }} onClick={() => setShowTokenInput(true)}>· 🔑 Token değiştir</span>
+                  )}
                 </div>
                 {showTokenInput && (
                   <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
