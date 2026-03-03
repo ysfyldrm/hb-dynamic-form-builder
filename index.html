@@ -96,7 +96,7 @@ const decodeQrPayload = (data) => {
   } catch { return null; }
 };
 const parseShareUrl = () => { try { const h = location.hash.slice(1); return h ? JSON.parse(decodeURIComponent(escape(atob(h)))) : null; } catch { return null; } };
-const generateQR = (data, s) => `https://api.qrserver.com/v1/create-qr-code/?size=${s}x${s}&data=${encodeURIComponent(data)}&bgcolor=0f0f1a&color=64ffda&format=svg&ecc=L`;
+const generateQR = (data, s) => `https://api.qrserver.com/v1/create-qr-code/?size=${s}x${s}&data=${encodeURIComponent(data)}&bgcolor=FFFFFF&color=000000&format=png&ecc=M&margin=4`;
 const stripTypeFields = (o) => { if (Array.isArray(o)) return o.map(stripTypeFields); if (o && typeof o === "object") { const r = {}; for (const [k, v] of Object.entries(o)) { if (k === "__type" || k === "RawOptions") continue; r[k] = stripTypeFields(v); } return r; } return o; };
 const extractFormData = (raw) => { let o = raw; if (o.Data && Array.isArray(o.Data) && o.Data.length > 0) o = o.Data[0]; o = stripTypeFields(o); if (o.FormFields) return o; for (const v of Object.values(o)) { if (v && typeof v === "object" && v.FormFields) return stripTypeFields(v); } return o; };
 const createEmptyField = (order, ft = 1, sid = "main") => {
@@ -1608,7 +1608,9 @@ function DynamicFormBuilder() {
             <p style={{ margin: "0 0 16px", fontSize: 10, color: qrPayload.length > 2900 ? C.danger : qrPayload.length > 2000 ? C.warning : C.success }}>
               {qrPayload.length > 2900 ? "⚠ Veri çok büyük — QR okunamayabilir. Alan sayısını azaltın." : `✓ Base64: ${qrPayload.length} karakter`}
             </p>
-            <img src={generateQR(qrPayload, 280)} alt="QR" style={{ width: 280, height: 280, borderRadius: 12, marginBottom: 16 }} />
+            <div style={{ background: "#fff", borderRadius: 12, padding: 12, display: "inline-block", marginBottom: 16 }}>
+              <img src={generateQR(qrPayload, 350)} alt="QR" style={{ width: 300, height: 300, display: "block" }} />
+            </div>
             <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
               <button style={{ flex: 1, background: C.accent + "15", border: `1px solid ${C.accent}30`, color: C.accent, padding: "8px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} onClick={() => { navigator.clipboard?.writeText(qrPayload); showToastMsg("Base64 kopyalandı!"); }}>📋 Base64 Kopyala</button>
               <button style={{ flex: 1, background: C.surface2, border: `1px solid ${C.border}`, color: C.text, padding: "8px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }} onClick={() => { navigator.clipboard?.writeText(shareUrl); showToastMsg("Link kopyalandı!"); }}>🔗 Link Kopyala</button>
