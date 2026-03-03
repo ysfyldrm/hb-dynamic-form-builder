@@ -71,47 +71,27 @@ const loadCustomTemplates = () => { try { return JSON.parse(localStorage.getItem
 const saveCustomTemplates = (t) => { try { localStorage.setItem("dfb_templates", JSON.stringify(t)); } catch {} };
 const generateShareUrl = (j) => { try { return `${location.origin}${location.pathname}#${btoa(unescape(encodeURIComponent(JSON.stringify(j))))}`; } catch { return null; } };
 
-// ── JSONBlob API: QR'a sadece kısa blobId koymak için ──
-const JSONBLOB_API = "https://jsonblob.com/api/jsonBlob";
-const uploadToJsonBlob = async (json) => {
-  const res = await fetch(JSONBLOB_API, {
+// ── JSON Storage: QR'a sadece kısa ID koymak için ──
+const JSON_STORE_API = "https://json.extendsclass.com/bin";
+const uploadJsonBin = async (json) => {
+  const res = await fetch(JSON_STORE_API, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(json),
   });
-  if (!res.ok && res.status !== 201) throw new Error(`JSONBlob HTTP ${res.status}`);
-
-  let blobId = "";
-
-  // Strateji 1: Location header (CORS expose-headers izin veriyorsa)
-  const loc = res.headers.get("Location") || "";
-  if (loc) blobId = loc.split("/").pop() || "";
-
-  // Strateji 2: X-Jsonblob header
-  if (!blobId) blobId = res.headers.get("X-Jsonblob") || "";
-
-  // Strateji 3: Response URL (redirect follow edilmişse URL değişir)
-  if (!blobId && res.url && res.url.includes("/api/jsonBlob/")) {
-    blobId = res.url.split("/api/jsonBlob/").pop() || "";
-  }
-
-  // Strateji 4: Tüm header'ları tara
-  if (!blobId) {
-    for (const [, val] of res.headers.entries()) {
-      if (val.includes("/api/jsonBlob/")) { blobId = val.split("/").pop() || ""; break; }
-    }
-  }
-
-  if (!blobId) throw new Error("blobId alınamadı");
-  return blobId;
+  if (!res.ok) throw new Error(`Storage HTTP ${res.status}`);
+  const data = await res.json();
+  // Response: {"id": "abcdef123456", "status": 0, "uri": "/bin/abcdef123456"}
+  if (!data.id) throw new Error("ID alınamadı");
+  return data.id;
 };
-const fetchFromJsonBlob = async (blobId) => {
-  const res = await fetch(`${JSONBLOB_API}/${blobId}`, { headers: { "Accept": "application/json" } });
-  if (!res.ok) throw new Error(`JSONBlob read error: ${res.status}`);
+const fetchJsonBin = async (id) => {
+  const res = await fetch(`${JSON_STORE_API}/${id}`);
+  if (!res.ok) throw new Error(`Storage read HTTP ${res.status}`);
   return await res.json();
 };
 
-// Fallback: compressed payload (önceki yöntem)
+// Fallback: compressed payload
 const generateCompressedPayload = (j) => {
   try {
     const jsonStr = JSON.stringify(j);
@@ -1196,14 +1176,12 @@ function DynamicFormBuilder() {
     setQrLoading(true);
     setQrPayload(null);
     try {
-      // JSONBlob'a yükle → QR'a sadece blobId koy (~24 char)
-      const blobId = await uploadToJsonBlob(json);
-      setQrPayload("B~" + blobId);
+      const binId = await uploadJsonBin(json);
+      setQrPayload("B~" + binId);
       setQrMode("blob");
       showToastMsg("Form yüklendi! QR hazır.");
     } catch (err) {
-      // Fallback: sıkıştırılmış base64
-      console.warn("JSONBlob failed, using compressed fallback:", err);
+      console.warn("JSON storage failed, using compressed fallback:", err);
       const compressed = generateCompressedPayload(json);
       setQrPayload(compressed);
       setQrMode("compressed");
