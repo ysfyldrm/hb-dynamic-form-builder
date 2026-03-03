@@ -43,7 +43,7 @@ def validate_format(data):
         return [], ["templates.json bos, ama gecerli"]
 
     template_names = []
-    valid_types = [1, 2, 3, 4, 5, 6, 7]
+    valid_types = [1, 2, 3, 4, 5, 6, 7, 8]
 
     for i, tmpl in enumerate(data):
         prefix = "Template[%d]" % i
