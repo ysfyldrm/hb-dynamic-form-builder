@@ -140,15 +140,19 @@ const createTemplatePR = async (token, templateName, templateDesc, templateJson)
     headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "Content-Type": "application/json", ...opts.headers },
   }).then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.message || `GitHub API ${r.status}`); return d; });
 
+  // UTF-8 safe base64 helpers
+  const b64decode = (b64) => decodeURIComponent(escape(atob(b64)));
+  const b64encode = (str) => btoa(unescape(encodeURIComponent(str)));
+
   // 1. Get current templates.json
   const file = await api("/contents/templates.json");
-  const currentContent = JSON.parse(atob(file.content.replace(/\n/g, "")));
+  const currentContent = JSON.parse(b64decode(file.content.replace(/\n/g, "")));
   const templates = Array.isArray(currentContent) ? currentContent : [];
 
   // 2. Add new template
   const newTemplate = { name: templateName, desc: templateDesc, json: templateJson };
   templates.push(newTemplate);
-  const updatedContent = btoa(unescape(encodeURIComponent(JSON.stringify(templates, null, 2))));
+  const updatedContent = b64encode(JSON.stringify(templates, null, 2));
 
   // 3. Get main branch SHA
   const mainRef = await api("/git/ref/heads/main");
