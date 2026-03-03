@@ -268,5 +268,146 @@
         }
       ]
     }
+  },
+  {
+    "name": "YY Spor Esenlikler Diler",
+    "desc": "5 alan, 1 bölüm",
+    "json": {
+      "Sections": [
+        {
+          "Id": "payment",
+          "Title": "ÖDEME BİLGİLERİ",
+          "Order": 1
+        }
+      ],
+      "FormFields": [
+        {
+          "Id": "infocard_01",
+          "Order": 0,
+          "FieldType": 7,
+          "Label": "YY Spor",
+          "SectionId": "payment",
+          "Config": {
+            "Visible": true,
+            "Enabled": true,
+            "Required": false,
+            "Placeholder": "Kurum"
+          }
+        },
+        {
+          "Id": "debt_type",
+          "Order": 1,
+          "FieldType": 2,
+          "Label": "Borç Türü",
+          "SectionId": "payment",
+          "Config": {
+            "Visible": true,
+            "Enabled": true,
+            "Required": true,
+            "KeyboardType": 0,
+            "Options": [
+              {
+                "Value": "Tahakkuk Ödemesi",
+                "Label": "Tahakkuk Ödemesi"
+              },
+              {
+                "Value": "Taksit Ödemesi",
+                "Label": "Taksit Ödemesi"
+              }
+            ],
+            "DefaultValue": "Tahakkuk Ödemesi",
+            "Errors": {
+              "Required": "Zorunlu alan"
+            }
+          }
+        },
+        {
+          "Id": "tckn",
+          "Order": 2,
+          "FieldType": 1,
+          "Label": "TCKN-VKN",
+          "SectionId": "payment",
+          "Config": {
+            "Visible": true,
+            "Enabled": true,
+            "Required": true,
+            "MinLength": 10,
+            "MaxLength": 11,
+            "KeyboardType": 3,
+            "ValidationRules": [
+              {
+                "Type": 0,
+                "Pattern": "^[0-9]{10,11}$",
+                "ErrorMessage": "Lütfen geçerli bir TCKN/VKN giriniz."
+              }
+            ]
+          }
+        },
+        {
+          "Id": "tahakkuk_no",
+          "Order": 3,
+          "FieldType": 1,
+          "Label": "Tahakkuk No",
+          "SectionId": "payment",
+          "Config": {
+            "Visible": true,
+            "Enabled": true,
+            "Required": false,
+            "MaxLength": 31,
+            "KeyboardType": 1,
+            "Errors": {
+              "Required": "Zorunlu alan",
+              "MinLength": "En az {0} karakter giriniz",
+              "MaxLength": "En fazla {0} karakter giriniz"
+            }
+          },
+          "DependsOn": {
+            "FieldId": "debt_type",
+            "DefaultVisible": false,
+            "Rules": {
+              "Tahakkuk Ödemesi": {
+                "Visible": true,
+                "Enabled": true,
+                "Required": false,
+                "MaxLength": 31,
+                "KeyboardType": 1
+              }
+            }
+          }
+        },
+        {
+          "Id": "taksit",
+          "Order": 3,
+          "FieldType": 1,
+          "Label": "Taksit No",
+          "SectionId": "payment",
+          "Config": {
+            "Visible": true,
+            "Enabled": true,
+            "Required": false,
+            "MaxLength": 31,
+            "KeyboardType": 1,
+            "Errors": {
+              "Required": "Zorunlu alan",
+              "MinLength": "En az {0} karakter giriniz",
+              "MaxLength": "En fazla {0} karakter giriniz"
+            }
+          },
+          "DependsOn": {
+            "FieldId": "debt_type",
+            "DefaultVisible": false,
+            "Rules": {
+              "Taksit Ödemesi": {
+                "Visible": true,
+                "Enabled": true,
+                "Required": true,
+                "MaxLength": 31,
+                "KeyboardType": 1
+              }
+            }
+          }
+        }
+      ]
+    }
   }
 ]
