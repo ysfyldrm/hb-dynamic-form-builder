@@ -8,7 +8,6 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #0f0f1a; overflow: hidden; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -56,12 +55,7 @@ const C = {
   danger: "#ff5252", warning: "#ffab40", success: "#69f0ae", blue: "#448aff",
 };
 
-const BUILTIN_TEMPLATES = [
-  { name: "Basit Input", desc: "Ad Soyad + Telefon", builtin: true, json: { Sections: [{ Id: "main", Title: "TEMEL BİLGİLER", Order: 1 }], FormFields: [{ Id: "name", Order: 1, FieldType: 1, Label: "Ad Soyad", SectionId: "main", Config: { Visible: true, Enabled: true, Required: true, MinLength: 3, MaxLength: 50, Placeholder: "Adınızı giriniz", KeyboardType: 1 } }, { Id: "phone", Order: 2, FieldType: 1, Label: "Telefon", SectionId: "main", Config: { Visible: true, Enabled: true, Required: true, MinLength: 10, MaxLength: 10, Placeholder: "5XX XXX XX XX", KeyboardType: 4, Mask: "### ### ## ##" } }] } },
-  { name: "Dropdown → Input", desc: "Kimlik tipi bağımlılığı", builtin: true, json: { Sections: [{ Id: "identity", Title: "KİMLİK BİLGİLERİ", Order: 1 }], FormFields: [{ Id: "id_type", Order: 1, FieldType: 2, Label: "Kimlik Tipi", SectionId: "identity", Config: { Visible: true, Enabled: true, Required: true, Options: [{ Value: "tckn", Label: "TCKN" }, { Value: "vkn", Label: "VKN" }, { Value: "passport", Label: "Pasaport" }] } }, { Id: "id_number", Order: 2, FieldType: 1, Label: "Kimlik Numarası", SectionId: "identity", Config: { Visible: true, Enabled: true, Required: true, MinLength: 11, MaxLength: 11, Placeholder: "TCKN giriniz", KeyboardType: 2 }, DependsOn: { FieldId: "id_type", DefaultVisible: true, Rules: { tckn: { MinLength: 11, MaxLength: 11, Placeholder: "11 haneli TCKN" }, vkn: { MinLength: 10, MaxLength: 10, Placeholder: "10 haneli VKN" }, passport: { MinLength: 6, MaxLength: 9, Placeholder: "Pasaport No", KeyboardType: 1 } } } }] } },
-  { name: "İŞKUR Ödeme", desc: "Borç türüne göre alanlar", builtin: true, json: { Sections: [{ Id: "payment", Title: "ÖDEME BİLGİLERİ", Order: 1 }], FormFields: [{ Id: "infocard_01", Order: 0, FieldType: 7, Label: "İŞKUR", SectionId: "payment", Config: { Visible: true, Enabled: true, Placeholder: "Kurum" } }, { Id: "debt_type", Order: 1, FieldType: 2, Label: "Borç Türü", SectionId: "payment", Config: { Visible: true, Enabled: true, Required: true, Options: [{ Value: "Tahakkuk Ödemesi", Label: "Tahakkuk" }, { Value: "Taksit", Label: "Taksit" }] } }, { Id: "tckn", Order: 2, FieldType: 1, Label: "TCKN-VKN", SectionId: "payment", Config: { Visible: true, Enabled: true, Required: true, MinLength: 10, MaxLength: 11, KeyboardType: 3, ValidationRules: [{ Type: 0, Pattern: "^[0-9]{10,11}$", ErrorMessage: "Geçerli TCKN/VKN giriniz" }] } }, { Id: "tahakkuk_no", Order: 3, FieldType: 1, Label: "Tahakkuk No", SectionId: "payment", Config: { Visible: false, Required: false, KeyboardType: 3 }, DependsOn: { FieldId: "debt_type", DefaultVisible: false, Rules: { "Tahakkuk Ödemesi": { Visible: true, Required: false, MaxLength: 31 } } } }, { Id: "taksit", Order: 4, FieldType: 1, Label: "Taksit No", SectionId: "payment", Config: { Visible: false, Required: false, KeyboardType: 3 }, DependsOn: { FieldId: "debt_type", DefaultVisible: false, Rules: { Taksit: { Visible: true, Required: true, MaxLength: 31 } } } }] } },
-  { name: "Çoklu Section", desc: "Kimlik + Ödeme + İletişim", builtin: true, json: { Sections: [{ Id: "identity", Title: "KİMLİK BİLGİLERİ", Order: 1 }, { Id: "payment", Title: "ÖDEME BİLGİLERİ", Order: 2 }, { Id: "contact", Title: "İLETİŞİM", Order: 3 }], FormFields: [{ Id: "id_type", Order: 1, FieldType: 2, Label: "Kimlik Tipi", SectionId: "identity", Config: { Visible: true, Required: true, Options: [{ Value: "tckn", Label: "TCKN" }, { Value: "vkn", Label: "VKN" }] } }, { Id: "id_number", Order: 2, FieldType: 1, Label: "Kimlik No", SectionId: "identity", Config: { Visible: true, Required: true, MinLength: 10, MaxLength: 11, KeyboardType: 2 } }, { Id: "amount", Order: 3, FieldType: 6, Label: "Tutar", SectionId: "payment", Config: { Visible: true, KeyboardType: 3, Placeholder: "0,00" } }, { Id: "email", Order: 4, FieldType: 1, Label: "E-posta", SectionId: "contact", Config: { Visible: true, Required: false, Placeholder: "ornek@email.com", KeyboardType: 5 } }, { Id: "phone", Order: 5, FieldType: 1, Label: "Telefon", SectionId: "contact", Config: { Visible: true, Required: true, MinLength: 10, MaxLength: 10, KeyboardType: 4, Mask: "### ### ## ##" } }] } },
-];
+const BUILTIN_TEMPLATES = [];
 
 // ═══════════════════════════════════════════════════════════════
 // UTILITIES
@@ -1692,36 +1686,15 @@ function DynamicFormBuilder() {
                 </div>
               </>
             )}
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: C.text2, marginBottom: 10 }}>📦 Hazır Şablonlar</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-              {BUILTIN_TEMPLATES.map((t, i) => (
-                <div key={`b${i}`} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, cursor: "pointer" }} onClick={() => loadTemplate(t)}>
+              {remoteTemplates.map((t, i) => (
+                <div key={`t${i}`} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, cursor: "pointer" }} onClick={() => loadTemplate(t)}>
                   <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{t.name}</div>
                   <div style={{ fontSize: 10, color: C.text2, marginBottom: 10 }}>{t.desc}</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
-                    {t.json.FormFields.slice(0, 5).map((f) => <span key={f.Id} style={{ fontSize: 10, padding: "2px 6px", background: C.surface2, borderRadius: 4 }}>{fieldTypeInfo(f.FieldType).icon} {f.Label || f.Id}</span>)}
+                    {(t.json?.FormFields || []).slice(0, 6).map((f) => <span key={f.Id} style={{ fontSize: 10, padding: "2px 6px", background: C.surface2, borderRadius: 4 }}>{fieldTypeInfo(f.FieldType).icon} {f.Label || f.Id}</span>)}
                   </div>
-            {remoteTemplates.length > 0 && (
-              <>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: C.text2, marginBottom: 10, marginTop: 20 }}>GitHub Templates</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-                  {remoteTemplates.map((t, i) => (
-                    <div key={`r${i}`} style={{ background: C.surface, border: `1px solid ${C.accent}20`, borderRadius: 10, padding: 16, cursor: "pointer" }} onClick={() => loadTemplate(t)}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700 }}>{t.name}</div>
-                        <span style={{ fontSize: 8, padding: "1px 5px", borderRadius: 3, background: C.accent + "20", color: C.accent, fontWeight: 700 }}>REMOTE</span>
-                      </div>
-                      <div style={{ fontSize: 10, color: C.text2, marginBottom: 10 }}>{t.desc}</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
-                        {(t.json?.FormFields || []).slice(0, 5).map((f) => <span key={f.Id} style={{ fontSize: 10, padding: "2px 6px", background: C.surface2, borderRadius: 4 }}>{fieldTypeInfo(f.FieldType).icon} {f.Label || f.Id}</span>)}
-                      </div>
-                      <button style={{ background: C.accent, color: C.bg, border: "none", padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Yükle</button>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-                  <button style={{ background: C.accent, color: C.bg, border: "none", padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Yükle →</button>
+                  <button style={{ background: C.accent, color: C.bg, border: "none", padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }} onClick={() => loadTemplate(t)}>Yükle</button>
                 </div>
               ))}
             </div>
