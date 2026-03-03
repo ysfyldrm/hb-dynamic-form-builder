@@ -71,116 +71,40 @@ const loadCustomTemplates = () => { try { return JSON.parse(localStorage.getItem
 const saveCustomTemplates = (t) => { try { localStorage.setItem("dfb_templates", JSON.stringify(t)); } catch {} };
 const generateShareUrl = (j) => { try { return `${location.origin}${location.pathname}#${btoa(unescape(encodeURIComponent(JSON.stringify(j))))}`; } catch { return null; } };
 
-// ── JSON Storage: Birden fazla servis dener, ilk çalışanı kullanır ──
-const STORAGE_SERVICES = [
-  {
-    name: "jsonblob",
-    upload: async (json) => {
-      // Yöntem 1: Normal fetch
-      try {
-        const res = await fetch("https://jsonblob.com/api/jsonBlob", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Accept": "application/json" },
-          body: JSON.stringify(json),
-        });
-        const blobId = res.headers.get("x-jsonblob-id")
-          || res.headers.get("X-Jsonblob-Id")
-          || (res.headers.get("Location") || "").split("/").pop()
-          || "";
-        console.log("[jsonblob] method1 status:", res.status, "blobId:", blobId, "headers:", [...res.headers.entries()]);
-        if (blobId) return { id: blobId, fetch: `https://jsonblob.com/api/jsonBlob/${blobId}` };
-      } catch (e) {
-        console.warn("[jsonblob] method1 network error:", e.message);
-      }
-
-      // Yöntem 2: redirect manual — 201 tarayıcıyı redirect'e zorluyorsa
-      try {
-        const res2 = await fetch("https://jsonblob.com/api/jsonBlob", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Accept": "application/json" },
-          body: JSON.stringify(json),
-          redirect: "manual",
-        });
-        console.log("[jsonblob] method2 type:", res2.type, "status:", res2.status, "url:", res2.url);
-        // opaque-redirect response — header okunamaz ama status 0 olur
-        // bu durumda çalışmaz, skip
-        if (res2.type === "opaque" || res2.type === "opaqueredirect") throw new Error("opaque response");
-        const blobId2 = res2.headers.get("x-jsonblob-id")
-          || (res2.headers.get("Location") || "").split("/").pop()
-          || "";
-        if (blobId2) return { id: blobId2, fetch: `https://jsonblob.com/api/jsonBlob/${blobId2}` };
-      } catch (e) {
-        console.warn("[jsonblob] method2 failed:", e.message);
-      }
-
-      // Yöntem 3: XMLHttpRequest — fetch'ten farklı davranabilir
-      return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", "https://jsonblob.com/api/jsonBlob", true);
-        xhr.setRequestHeader("Content-Type", "application/json");
-        xhr.setRequestHeader("Accept", "application/json");
-        xhr.onload = () => {
-          const blobId = xhr.getResponseHeader("X-Jsonblob-Id")
-            || xhr.getResponseHeader("x-jsonblob-id")
-            || (xhr.getResponseHeader("Location") || "").split("/").pop()
-            || "";
-          console.log("[jsonblob] method3 XHR status:", xhr.status, "blobId:", blobId);
-          if (blobId) resolve({ id: blobId, fetch: `https://jsonblob.com/api/jsonBlob/${blobId}` });
-          else reject(new Error("XHR: header okunamadı"));
-        };
-        xhr.onerror = () => reject(new Error("XHR network error"));
-        xhr.send(JSON.stringify(json));
-      });
-    },
-  },
-  {
-    name: "dpaste",
-    upload: async (json) => {
-      const formData = new FormData();
-      formData.append("content", JSON.stringify(json));
-      formData.append("syntax", "json");
-      formData.append("expiry_days", "30");
-      const res = await fetch("https://dpaste.org/api/", { method: "POST", body: formData });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const url = (await res.text()).trim().replace(/\/$/, "");
-      const id = url.split("/").pop();
-      if (!id) throw new Error("No ID");
-      return { id, fetch: `${url}.txt` };
-    },
-  },
-  {
-    name: "jsonbin",
-    upload: async (json) => {
-      const res = await fetch("https://json.extendsclass.com/bin", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(json),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (!data.id) throw new Error("No ID");
-      return { id: data.id, fetch: `https://json.extendsclass.com/bin/${data.id}` };
-    },
-  },
+// ── JSONBlob via CORS proxy — POST için proxy, GET için direkt ──
+const JSONBLOB_API = "https://jsonblob.com/api/jsonBlob";
+const CORS_PROXIES = [
+  (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
 ];
 
-const uploadJsonStorage = async (json) => {
-  const errors = [];
-  for (const svc of STORAGE_SERVICES) {
+const uploadJsonBlob = async (json) => {
+  // Her CORS proxy'yi dene
+  for (let i = 0; i < CORS_PROXIES.length; i++) {
+    const proxyUrl = CORS_PROXIES[i](JSONBLOB_API);
     try {
-      console.log(`[QR Upload] Trying ${svc.name}...`);
-      const result = await svc.upload(json);
-      console.log(`[QR Upload] ✅ ${svc.name} success:`, result.fetch);
-      return { ...result, service: svc.name };
-    } catch (err) {
-      console.warn(`[QR Upload] ❌ ${svc.name} failed:`, err.message);
-      errors.push(`${svc.name}: ${err.message}`);
+      console.log(`[QR] Trying proxy ${i + 1}:`, proxyUrl);
+      const res = await fetch(proxyUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(json),
+      });
+      // Proxy response header'ları iletir
+      const blobId = res.headers.get("x-jsonblob-id")
+        || res.headers.get("X-Jsonblob-Id")
+        || (res.headers.get("Location") || "").split("/").pop()
+        || "";
+      console.log(`[QR] Proxy ${i + 1} status:`, res.status, "blobId:", blobId);
+      if (blobId) return blobId;
+    } catch (e) {
+      console.warn(`[QR] Proxy ${i + 1} failed:`, e.message);
     }
   }
-  throw new Error("Tüm servisler başarısız: " + errors.join(", "));
+  throw new Error("Tüm proxy'ler başarısız");
 };
 
-// Fallback: compressed payload
-const generateCompressedPayload = (j) => {
+// QR Payload oluştur
+const generateQrPayload = (j) => {
   try {
     const jsonStr = JSON.stringify(j);
     if (typeof pako !== "undefined") {
@@ -204,7 +128,7 @@ const decodeQrPayload = (data) => {
   } catch { return null; }
 };
 const parseShareUrl = () => { try { const h = location.hash.slice(1); return h ? JSON.parse(decodeURIComponent(escape(atob(h)))) : null; } catch { return null; } };
-const generateQR = (data, s) => `https://api.qrserver.com/v1/create-qr-code/?size=${s}x${s}&data=${encodeURIComponent(data)}&bgcolor=FFFFFF&color=000000&format=png&ecc=M&margin=4`;
+const generateQR = (data, s) => `https://api.qrserver.com/v1/create-qr-code/?size=${s}x${s}&data=${encodeURIComponent(data)}&bgcolor=FFFFFF&color=000000&format=png&ecc=L&margin=6`;
 const stripTypeFields = (o) => { if (Array.isArray(o)) return o.map(stripTypeFields); if (o && typeof o === "object") { const r = {}; for (const [k, v] of Object.entries(o)) { if (k === "__type" || k === "RawOptions") continue; r[k] = stripTypeFields(v); } return r; } return o; };
 const extractFormData = (raw) => { let o = raw; if (o.Data && Array.isArray(o.Data) && o.Data.length > 0) o = o.Data[0]; o = stripTypeFields(o); if (o.FormFields) return o; for (const v of Object.values(o)) { if (v && typeof v === "object" && v.FormFields) return stripTypeFields(v); } return o; };
 const createEmptyField = (order, ft = 1, sid = "main") => {
@@ -1264,17 +1188,18 @@ function DynamicFormBuilder() {
     setQrLoading(true);
     setQrPayload(null);
     try {
-      const result = await uploadJsonStorage(json);
-      // QR'a fetch URL'ini koy — Android doğrudan GET yapacak
-      setQrPayload(result.fetch);
+      const blobId = await uploadJsonBlob(json);
+      // QR'a sadece fetch URL koy (~55 char) — anında okunur
+      const fetchUrl = `${JSONBLOB_API}/${blobId}`;
+      setQrPayload(fetchUrl);
       setQrMode("blob");
-      showToastMsg(`${result.service} ile yüklendi!`);
+      showToastMsg("QR hazır!");
     } catch (err) {
-      console.warn("Tüm servisler başarısız:", err);
-      const compressed = generateCompressedPayload(json);
+      console.warn("JSONBlob failed, using compressed:", err);
+      const compressed = generateQrPayload(json);
       setQrPayload(compressed);
       setQrMode("compressed");
-      showToastMsg("Yerel QR oluşturuldu (offline)");
+      showToastMsg("Yerel QR oluşturuldu");
     }
     setQrLoading(false);
     if (u) navigator.clipboard?.writeText(u).catch(() => {});
@@ -1734,7 +1659,7 @@ function DynamicFormBuilder() {
       {/* QR Modal */}
       {showQR && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(6px)" }} onClick={() => setShowQR(false)}>
-          <div style={{ background: C.surface, borderRadius: 16, padding: 28, textAlign: "center", maxWidth: 420, width: "90%", border: `1px solid ${C.border}` }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ background: C.surface, borderRadius: 16, padding: 28, textAlign: "center", maxWidth: 500, width: "95%", border: `1px solid ${C.border}` }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ margin: "0 0 8px", fontSize: 18, color: C.accent }}>📱 QR ile Paylaş</h3>
             <p style={{ margin: "0 0 12px", fontSize: 12, color: C.text2 }}>Developer Options içerisinden QR okutarak test edin</p>
 
@@ -1759,7 +1684,7 @@ function DynamicFormBuilder() {
                   )}
                 </div>
                 <div style={{ background: "#fff", borderRadius: 12, padding: 12, display: "inline-block", marginBottom: 16 }}>
-                  <img src={generateQR(qrPayload, 350)} alt="QR" style={{ width: 300, height: 300, display: "block" }} />
+                  <img src={generateQR(qrPayload, 500)} alt="QR" style={{ width: 380, height: 380, display: "block" }} />
                 </div>
                 <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
                   <button style={{ flex: 1, background: C.accent + "15", border: `1px solid ${C.accent}30`, color: C.accent, padding: "8px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} onClick={() => { navigator.clipboard?.writeText(qrPayload); showToastMsg("QR payload kopyalandı!"); }}>📋 QR Payload</button>
