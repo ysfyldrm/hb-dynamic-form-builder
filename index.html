@@ -72,26 +72,27 @@ const generateShareUrl = (j) => { try { return `${location.origin}${location.pat
 const generateQrPayload = (j) => {
   try {
     const jsonStr = JSON.stringify(j);
-    // Compress with pako (deflateRaw) if available, prefix with "Z:" marker
     if (typeof pako !== "undefined") {
       const compressed = pako.deflateRaw(new TextEncoder().encode(jsonStr));
-      const b64 = btoa(String.fromCharCode(...compressed));
-      return "Z:" + b64;
+      // URL-safe base64: + → -, / → _, trailing = kaldır
+      const b64 = btoa(String.fromCharCode(...compressed))
+        .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      return "Z~" + b64;
     }
-    // Fallback: plain base64
-    return btoa(unescape(encodeURIComponent(jsonStr)));
+    // Fallback: URL-safe base64 (sıkıştırmasız)
+    const b64 = btoa(unescape(encodeURIComponent(jsonStr)))
+      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return b64;
   } catch { return null; }
 };
 const decodeQrPayload = (data) => {
   try {
-    if (data.startsWith("Z:") && typeof pako !== "undefined") {
-      const b64 = data.slice(2);
-      const binary = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-      const decompressed = pako.inflateRaw(binary);
-      return JSON.parse(new TextDecoder().decode(decompressed));
+    const restoreB64 = (s) => { let r = s.replace(/-/g, "+").replace(/_/g, "/"); while (r.length % 4) r += "="; return r; };
+    if (data.startsWith("Z~") && typeof pako !== "undefined") {
+      const binary = Uint8Array.from(atob(restoreB64(data.slice(2))), c => c.charCodeAt(0));
+      return JSON.parse(new TextDecoder().decode(pako.inflateRaw(binary)));
     }
-    // Plain base64
-    return JSON.parse(decodeURIComponent(escape(atob(data))));
+    return JSON.parse(decodeURIComponent(escape(atob(restoreB64(data)))));
   } catch { return null; }
 };
 const parseShareUrl = () => { try { const h = location.hash.slice(1); return h ? JSON.parse(decodeURIComponent(escape(atob(h)))) : null; } catch { return null; } };
