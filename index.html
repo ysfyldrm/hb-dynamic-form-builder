@@ -74,6 +74,81 @@ const generateShareUrl = (j) => { try { return `${location.origin}${location.pat
 // ── JSON Storage: Birden fazla servis dener, ilk çalışanı kullanır ──
 const STORAGE_SERVICES = [
   {
+    name: "jsonblob",
+    upload: async (json) => {
+      // Yöntem 1: Normal fetch
+      try {
+        const res = await fetch("https://jsonblob.com/api/jsonBlob", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify(json),
+        });
+        const blobId = res.headers.get("x-jsonblob-id")
+          || res.headers.get("X-Jsonblob-Id")
+          || (res.headers.get("Location") || "").split("/").pop()
+          || "";
+        console.log("[jsonblob] method1 status:", res.status, "blobId:", blobId, "headers:", [...res.headers.entries()]);
+        if (blobId) return { id: blobId, fetch: `https://jsonblob.com/api/jsonBlob/${blobId}` };
+      } catch (e) {
+        console.warn("[jsonblob] method1 network error:", e.message);
+      }
+
+      // Yöntem 2: redirect manual — 201 tarayıcıyı redirect'e zorluyorsa
+      try {
+        const res2 = await fetch("https://jsonblob.com/api/jsonBlob", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify(json),
+          redirect: "manual",
+        });
+        console.log("[jsonblob] method2 type:", res2.type, "status:", res2.status, "url:", res2.url);
+        // opaque-redirect response — header okunamaz ama status 0 olur
+        // bu durumda çalışmaz, skip
+        if (res2.type === "opaque" || res2.type === "opaqueredirect") throw new Error("opaque response");
+        const blobId2 = res2.headers.get("x-jsonblob-id")
+          || (res2.headers.get("Location") || "").split("/").pop()
+          || "";
+        if (blobId2) return { id: blobId2, fetch: `https://jsonblob.com/api/jsonBlob/${blobId2}` };
+      } catch (e) {
+        console.warn("[jsonblob] method2 failed:", e.message);
+      }
+
+      // Yöntem 3: XMLHttpRequest — fetch'ten farklı davranabilir
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "https://jsonblob.com/api/jsonBlob", true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.setRequestHeader("Accept", "application/json");
+        xhr.onload = () => {
+          const blobId = xhr.getResponseHeader("X-Jsonblob-Id")
+            || xhr.getResponseHeader("x-jsonblob-id")
+            || (xhr.getResponseHeader("Location") || "").split("/").pop()
+            || "";
+          console.log("[jsonblob] method3 XHR status:", xhr.status, "blobId:", blobId);
+          if (blobId) resolve({ id: blobId, fetch: `https://jsonblob.com/api/jsonBlob/${blobId}` });
+          else reject(new Error("XHR: header okunamadı"));
+        };
+        xhr.onerror = () => reject(new Error("XHR network error"));
+        xhr.send(JSON.stringify(json));
+      });
+    },
+  },
+  {
+    name: "dpaste",
+    upload: async (json) => {
+      const formData = new FormData();
+      formData.append("content", JSON.stringify(json));
+      formData.append("syntax", "json");
+      formData.append("expiry_days", "30");
+      const res = await fetch("https://dpaste.org/api/", { method: "POST", body: formData });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const url = (await res.text()).trim().replace(/\/$/, "");
+      const id = url.split("/").pop();
+      if (!id) throw new Error("No ID");
+      return { id, fetch: `${url}.txt` };
+    },
+  },
+  {
     name: "jsonbin",
     upload: async (json) => {
       const res = await fetch("https://json.extendsclass.com/bin", {
@@ -86,46 +161,18 @@ const STORAGE_SERVICES = [
       return { id: data.id, fetch: `https://json.extendsclass.com/bin/${data.id}` };
     },
   },
-  {
-    name: "jsonblob",
-    upload: async (json) => {
-      const res = await fetch("https://jsonblob.com/api/jsonBlob", {
-        method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify(json),
-      });
-      // blobId'yi URL'den al
-      let blobId = "";
-      const loc = res.headers.get("Location") || "";
-      if (loc) blobId = loc.split("/").pop();
-      if (!blobId && res.url?.includes("/api/jsonBlob/")) blobId = res.url.split("/api/jsonBlob/").pop();
-      if (!blobId) throw new Error("No ID from headers");
-      return { id: blobId, fetch: `https://jsonblob.com/api/jsonBlob/${blobId}` };
-    },
-  },
-  {
-    name: "dpaste",
-    upload: async (json) => {
-      const formData = new FormData();
-      formData.append("content", JSON.stringify(json));
-      formData.append("syntax", "json");
-      formData.append("expiry_days", "30");
-      const res = await fetch("https://dpaste.org/api/", { method: "POST", body: formData });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const url = (await res.text()).trim();
-      const id = url.replace(/\/$/, "").split("/").pop();
-      if (!id) throw new Error("No ID");
-      return { id, fetch: `https://dpaste.org/${id}.txt` };
-    },
-  },
 ];
 
 const uploadJsonStorage = async (json) => {
   const errors = [];
   for (const svc of STORAGE_SERVICES) {
     try {
+      console.log(`[QR Upload] Trying ${svc.name}...`);
       const result = await svc.upload(json);
+      console.log(`[QR Upload] ✅ ${svc.name} success:`, result.fetch);
       return { ...result, service: svc.name };
     } catch (err) {
+      console.warn(`[QR Upload] ❌ ${svc.name} failed:`, err.message);
       errors.push(`${svc.name}: ${err.message}`);
     }
   }
