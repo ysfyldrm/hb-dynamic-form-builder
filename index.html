@@ -71,24 +71,65 @@ const loadCustomTemplates = () => { try { return JSON.parse(localStorage.getItem
 const saveCustomTemplates = (t) => { try { localStorage.setItem("dfb_templates", JSON.stringify(t)); } catch {} };
 const generateShareUrl = (j) => { try { return `${location.origin}${location.pathname}#${btoa(unescape(encodeURIComponent(JSON.stringify(j))))}`; } catch { return null; } };
 
-// ── JSON Storage: QR'a sadece kısa ID koymak için ──
-const JSON_STORE_API = "https://json.extendsclass.com/bin";
-const uploadJsonBin = async (json) => {
-  const res = await fetch(JSON_STORE_API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(json),
-  });
-  if (!res.ok) throw new Error(`Storage HTTP ${res.status}`);
-  const data = await res.json();
-  // Response: {"id": "abcdef123456", "status": 0, "uri": "/bin/abcdef123456"}
-  if (!data.id) throw new Error("ID alınamadı");
-  return data.id;
-};
-const fetchJsonBin = async (id) => {
-  const res = await fetch(`${JSON_STORE_API}/${id}`);
-  if (!res.ok) throw new Error(`Storage read HTTP ${res.status}`);
-  return await res.json();
+// ── JSON Storage: Birden fazla servis dener, ilk çalışanı kullanır ──
+const STORAGE_SERVICES = [
+  {
+    name: "jsonbin",
+    upload: async (json) => {
+      const res = await fetch("https://json.extendsclass.com/bin", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(json),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data.id) throw new Error("No ID");
+      return { id: data.id, fetch: `https://json.extendsclass.com/bin/${data.id}` };
+    },
+  },
+  {
+    name: "jsonblob",
+    upload: async (json) => {
+      const res = await fetch("https://jsonblob.com/api/jsonBlob", {
+        method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(json),
+      });
+      // blobId'yi URL'den al
+      let blobId = "";
+      const loc = res.headers.get("Location") || "";
+      if (loc) blobId = loc.split("/").pop();
+      if (!blobId && res.url?.includes("/api/jsonBlob/")) blobId = res.url.split("/api/jsonBlob/").pop();
+      if (!blobId) throw new Error("No ID from headers");
+      return { id: blobId, fetch: `https://jsonblob.com/api/jsonBlob/${blobId}` };
+    },
+  },
+  {
+    name: "dpaste",
+    upload: async (json) => {
+      const formData = new FormData();
+      formData.append("content", JSON.stringify(json));
+      formData.append("syntax", "json");
+      formData.append("expiry_days", "30");
+      const res = await fetch("https://dpaste.org/api/", { method: "POST", body: formData });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const url = (await res.text()).trim();
+      const id = url.replace(/\/$/, "").split("/").pop();
+      if (!id) throw new Error("No ID");
+      return { id, fetch: `https://dpaste.org/${id}.txt` };
+    },
+  },
+];
+
+const uploadJsonStorage = async (json) => {
+  const errors = [];
+  for (const svc of STORAGE_SERVICES) {
+    try {
+      const result = await svc.upload(json);
+      return { ...result, service: svc.name };
+    } catch (err) {
+      errors.push(`${svc.name}: ${err.message}`);
+    }
+  }
+  throw new Error("Tüm servisler başarısız: " + errors.join(", "));
 };
 
 // Fallback: compressed payload
@@ -1176,12 +1217,13 @@ function DynamicFormBuilder() {
     setQrLoading(true);
     setQrPayload(null);
     try {
-      const binId = await uploadJsonBin(json);
-      setQrPayload("B~" + binId);
+      const result = await uploadJsonStorage(json);
+      // QR'a fetch URL'ini koy — Android doğrudan GET yapacak
+      setQrPayload(result.fetch);
       setQrMode("blob");
-      showToastMsg("Form yüklendi! QR hazır.");
+      showToastMsg(`${result.service} ile yüklendi!`);
     } catch (err) {
-      console.warn("JSON storage failed, using compressed fallback:", err);
+      console.warn("Tüm servisler başarısız:", err);
       const compressed = generateCompressedPayload(json);
       setQrPayload(compressed);
       setQrMode("compressed");
