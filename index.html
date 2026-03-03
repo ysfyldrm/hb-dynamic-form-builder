@@ -12,6 +12,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -68,7 +69,31 @@ const fieldTypeInfo = (v) => FIELD_TYPES.find((t) => t.value === v) || FIELD_TYP
 const loadCustomTemplates = () => { try { return JSON.parse(localStorage.getItem("dfb_templates") || "[]"); } catch { return []; } };
 const saveCustomTemplates = (t) => { try { localStorage.setItem("dfb_templates", JSON.stringify(t)); } catch {} };
 const generateShareUrl = (j) => { try { return `${location.origin}${location.pathname}#${btoa(unescape(encodeURIComponent(JSON.stringify(j))))}`; } catch { return null; } };
-const generateQrPayload = (j) => { try { return btoa(unescape(encodeURIComponent(JSON.stringify(j)))); } catch { return null; } };
+const generateQrPayload = (j) => {
+  try {
+    const jsonStr = JSON.stringify(j);
+    // Compress with pako (deflateRaw) if available, prefix with "Z:" marker
+    if (typeof pako !== "undefined") {
+      const compressed = pako.deflateRaw(new TextEncoder().encode(jsonStr));
+      const b64 = btoa(String.fromCharCode(...compressed));
+      return "Z:" + b64;
+    }
+    // Fallback: plain base64
+    return btoa(unescape(encodeURIComponent(jsonStr)));
+  } catch { return null; }
+};
+const decodeQrPayload = (data) => {
+  try {
+    if (data.startsWith("Z:") && typeof pako !== "undefined") {
+      const b64 = data.slice(2);
+      const binary = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const decompressed = pako.inflateRaw(binary);
+      return JSON.parse(new TextDecoder().decode(decompressed));
+    }
+    // Plain base64
+    return JSON.parse(decodeURIComponent(escape(atob(data))));
+  } catch { return null; }
+};
 const parseShareUrl = () => { try { const h = location.hash.slice(1); return h ? JSON.parse(decodeURIComponent(escape(atob(h)))) : null; } catch { return null; } };
 const generateQR = (data, s) => `https://api.qrserver.com/v1/create-qr-code/?size=${s}x${s}&data=${encodeURIComponent(data)}&bgcolor=0f0f1a&color=64ffda&format=svg&ecc=L`;
 const stripTypeFields = (o) => { if (Array.isArray(o)) return o.map(stripTypeFields); if (o && typeof o === "object") { const r = {}; for (const [k, v] of Object.entries(o)) { if (k === "__type" || k === "RawOptions") continue; r[k] = stripTypeFields(v); } return r; } return o; };
