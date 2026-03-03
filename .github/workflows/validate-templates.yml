@@ -1,0 +1,22 @@
+name: Validate Templates
+
+on:
+  pull_request:
+    paths:
+      - 'templates.json'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Format kontrolu
+        run: python3 validate-templates.py
+
+      - name: Mevcut template korumasi
+        run: |
+          git show origin/main:templates.json > /tmp/old_templates.json 2>/dev/null || exit 0
+          python3 validate-templates.py --protect /tmp/old_templates.json
