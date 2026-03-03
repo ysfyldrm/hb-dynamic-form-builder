@@ -71,47 +71,95 @@ const loadCustomTemplates = () => { try { return JSON.parse(localStorage.getItem
 const saveCustomTemplates = (t) => { try { localStorage.setItem("dfb_templates", JSON.stringify(t)); } catch {} };
 const generateShareUrl = (j) => { try { return `${location.origin}${location.pathname}#${btoa(unescape(encodeURIComponent(JSON.stringify(j))))}`; } catch { return null; } };
 
-// ── JSONBlob via CORS proxy — POST için proxy, GET için direkt ──
-const JSONBLOB_API = "https://jsonblob.com/api/jsonBlob";
-const CORS_PROXIES = [
-  (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-  (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-];
+// ── Cloud Storage: Simple request servisleri (preflight yok!) ──
+const uploadToCloud = async (json) => {
+  const jsonStr = JSON.stringify(json);
 
-const uploadJsonBlob = async (json) => {
-  // Her CORS proxy'yi dene
-  for (let i = 0; i < CORS_PROXIES.length; i++) {
-    const proxyUrl = CORS_PROXIES[i](JSONBLOB_API);
-    try {
-      console.log(`[QR] Trying proxy ${i + 1}:`, proxyUrl);
-      const res = await fetch(proxyUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify(json),
-      });
-      // Proxy response header'ları iletir
-      const blobId = res.headers.get("x-jsonblob-id")
-        || res.headers.get("X-Jsonblob-Id")
-        || (res.headers.get("Location") || "").split("/").pop()
-        || "";
-      console.log(`[QR] Proxy ${i + 1} status:`, res.status, "blobId:", blobId);
-      if (blobId) return blobId;
-    } catch (e) {
-      console.warn(`[QR] Proxy ${i + 1} failed:`, e.message);
+  // Service 1: dpaste.com — form-urlencoded POST (simple request, no preflight)
+  try {
+    console.log("[QR] Trying dpaste.com...");
+    const body = new URLSearchParams();
+    body.append("content", jsonStr);
+    body.append("syntax", "json");
+    body.append("title", "form");
+    body.append("expiry_days", "90");
+    // URLSearchParams + no custom headers = simple request = no preflight!
+    const res = await fetch("https://dpaste.com/api/v2/", { method: "POST", body });
+    console.log("[QR] dpaste.com status:", res.status, "type:", res.type);
+    if (res.ok) {
+      const text = (await res.text()).trim();
+      console.log("[QR] dpaste.com response:", text);
+      // Response: paste ID like "ABCD1234" or URL
+      const id = text.replace(/['"]/g, "").split("/").filter(Boolean).pop();
+      if (id) {
+        const fetchUrl = `https://dpaste.com/${id}.txt`;
+        console.log("[QR] ✅ dpaste.com success:", fetchUrl);
+        return { service: "dpaste.com", fetchUrl, id };
+      }
     }
+    throw new Error(`dpaste.com HTTP ${res.status}`);
+  } catch (e) {
+    console.warn("[QR] dpaste.com failed:", e.message);
   }
-  throw new Error("Tüm proxy'ler başarısız");
+
+  // Service 2: dpaste.org — multipart/form-data POST (simple request, no preflight)
+  try {
+    console.log("[QR] Trying dpaste.org...");
+    const formData = new FormData();
+    formData.append("content", jsonStr);
+    formData.append("syntax", "json");
+    formData.append("expiry_days", "90");
+    formData.append("format", "url");
+    // FormData + no custom headers = simple request = no preflight!
+    const res = await fetch("https://dpaste.org/api/", { method: "POST", body: formData });
+    console.log("[QR] dpaste.org status:", res.status);
+    if (res.ok) {
+      const url = (await res.text()).trim().replace(/\/$/, "");
+      const id = url.split("/").pop();
+      if (id) {
+        const fetchUrl = `${url}.txt`;
+        console.log("[QR] ✅ dpaste.org success:", fetchUrl);
+        return { service: "dpaste.org", fetchUrl, id };
+      }
+    }
+    throw new Error(`dpaste.org HTTP ${res.status}`);
+  } catch (e) {
+    console.warn("[QR] dpaste.org failed:", e.message);
+  }
+
+  // Service 3: JSONBlob — text/plain POST (simple request, no preflight)
+  try {
+    console.log("[QR] Trying jsonblob text/plain...");
+    const res = await fetch("https://jsonblob.com/api/jsonBlob", {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: jsonStr,
+    });
+    const blobId = res.headers.get("x-jsonblob-id")
+      || (res.headers.get("location") || "").split("/").pop() || "";
+    console.log("[QR] jsonblob status:", res.status, "blobId:", blobId,
+      "headers:", Object.fromEntries([...res.headers.entries()]));
+    if (blobId) {
+      const fetchUrl = `https://jsonblob.com/api/jsonBlob/${blobId}`;
+      console.log("[QR] ✅ jsonblob success:", fetchUrl);
+      return { service: "jsonblob", fetchUrl, id: blobId };
+    }
+    throw new Error(`jsonblob no blobId (status: ${res.status})`);
+  } catch (e) {
+    console.warn("[QR] jsonblob failed:", e.message);
+  }
+
+  throw new Error("Tüm servisler başarısız");
 };
 
-// QR Payload oluştur
+// Compressed fallback
 const generateQrPayload = (j) => {
   try {
     const jsonStr = JSON.stringify(j);
     if (typeof pako !== "undefined") {
       const compressed = pako.deflateRaw(new TextEncoder().encode(jsonStr));
-      const b64 = btoa(String.fromCharCode(...compressed))
+      return "Z~" + btoa(String.fromCharCode(...compressed))
         .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      return "Z~" + b64;
     }
     return btoa(unescape(encodeURIComponent(jsonStr)))
       .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -1188,14 +1236,12 @@ function DynamicFormBuilder() {
     setQrLoading(true);
     setQrPayload(null);
     try {
-      const blobId = await uploadJsonBlob(json);
-      // QR'a sadece fetch URL koy (~55 char) — anında okunur
-      const fetchUrl = `${JSONBLOB_API}/${blobId}`;
-      setQrPayload(fetchUrl);
+      const result = await uploadToCloud(json);
+      setQrPayload(result.fetchUrl);
       setQrMode("blob");
-      showToastMsg("QR hazır!");
+      showToastMsg(`${result.service} ile yüklendi!`);
     } catch (err) {
-      console.warn("JSONBlob failed, using compressed:", err);
+      console.warn("Cloud upload failed:", err.message);
       const compressed = generateQrPayload(json);
       setQrPayload(compressed);
       setQrMode("compressed");
