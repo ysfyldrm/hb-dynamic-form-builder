@@ -6,6 +6,276 @@
       "Sections": [
         {
           "Id": "payment",
+          "Title": "ÃDEME BÄ°LGÄ°LERÄ°",
+          "Order": 1
+        }
+      ],
+      "FormFields": [
+        {
+          "Id": "infocard_01",
+          "Order": 0,
+          "FieldType": 7,
+          "Label": "Ä°ÅKUR",
+          "SectionId": "payment",
+          "Config": {
+            "Visible": true,
+            "Enabled": true,
+            "Required": false,
+            "Placeholder": "Kurum"
+          }
+        },
+        {
+          "Id": "debt_type",
+          "Order": 1,
+          "FieldType": 2,
+          "Label": "BorÃ§ TÃ¼rÃ¼",
+          "SectionId": "payment",
+          "Config": {
+            "Visible": true,
+            "Enabled": true,
+            "Required": true,
+            "KeyboardType": 0,
+            "Options": [
+              {
+                "Value": "Tahakkuk Ãdemesi",
+                "Label": "Tahakkuk Ãdemesi"
+              },
+              {
+                "Value": "Taksit Ãdemesi",
+                "Label": "Taksit Ãdemesi"
+              }
+            ],
+            "DefaultValue": "Tahakkuk Ãdemesi",
+            "Errors": {
+              "Required": "Zorunlu alan"
+            }
+          }
+        },
+        {
+          "Id": "tckn",
+          "Order": 2,
+          "FieldType": 1,
+          "Label": "TCKN-VKN",
+          "SectionId": "payment",
+          "Config": {
+            "Visible": true,
+            "Enabled": true,
+            "Required": true,
+            "MinLength": 10,
+            "MaxLength": 11,
+            "KeyboardType": 3,
+            "ValidationRules": [
+              {
+                "Type": 0,
+                "Pattern": "^[0-9]{10,11}$",
+                "ErrorMessage": "LÃ¼tfen geÃ§erli bir TCKN/VKN giriniz."
+              }
+            ]
+          }
+        },
+        {
+          "Id": "tahakkuk_no",
+          "Order": 3,
+          "FieldType": 1,
+          "Label": "Tahakkuk No",
+          "SectionId": "payment",
+          "Config": {
+            "Visible": true,
+            "Enabled": true,
+            "Required": false,
+            "MaxLength": 31,
+            "KeyboardType": 1,
+            "Errors": {
+              "Required": "Zorunlu alan",
+              "MinLength": "En az {0} karakter giriniz",
+              "MaxLength": "En fazla {0} karakter giriniz"
+            }
+          },
+          "DependsOn": {
+            "FieldId": "debt_type",
+            "DefaultVisible": false,
+            "Rules": {
+              "Tahakkuk Ãdemesi": {
+                "Visible": true,
+                "Enabled": true,
+                "Required": false,
+                "MaxLength": 31,
+                "KeyboardType": 1
+              }
+            }
+          }
+        },
+        {
+          "Id": "taksit",
+          "Order": 3,
+          "FieldType": 1,
+          "Label": "Taksit No",
+          "SectionId": "payment",
+          "Config": {
+            "Visible": true,
+            "Enabled": true,
+            "Required": false,
+            "MaxLength": 31,
+            "KeyboardType": 1,
+            "Errors": {
+              "Required": "Zorunlu alan",
+              "MinLength": "En az {0} karakter giriniz",
+              "MaxLength": "En fazla {0} karakter giriniz"
+            }
+          },
+          "DependsOn": {
+            "FieldId": "debt_type",
+            "DefaultVisible": false,
+            "Rules": {
+              "Taksit Ãdemesi": {
+                "Visible": true,
+                "Enabled": true,
+                "Required": true,
+                "MaxLength": 31,
+                "KeyboardType": 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "Financell (Turkcell Finansman)",
+    "desc": "Taksit, ara odeme, erken kapatma (tutar dependency ornegi)",
+    "json": {
+      "Sections": [
+        {
+          "Id": "payment",
+          "Title": "ÃDEME BÄ°LGÄ°LERÄ°",
+          "Order": 1
+        }
+      ],
+      "FormFields": [
+        {
+          "Id": "infocard_01",
+          "Order": 0,
+          "FieldType": 7,
+          "Label": "Financell (Turkcell Finansman)",
+          "SectionId": "payment",
+          "Config": {
+            "Visible": true,
+            "Enabled": true,
+            "Required": false,
+            "Placeholder": "Kurum"
+          }
+        },
+        {
+          "Id": "debt_type",
+          "Order": 1,
+          "FieldType": 2,
+          "Label": "Ä°Ålem Tipi",
+          "SectionId": "payment",
+          "Config": {
+            "Visible": true,
+            "Enabled": true,
+            "Required": true,
+            "KeyboardType": 0,
+            "Options": [
+              {
+                "Value": "Taksit Ãdeme",
+                "Label": "Taksit Ãdeme"
+              },
+              {
+                "Value": "Ara Ãdeme",
+                "Label": "Ara Ãdeme"
+              },
+              {
+                "Value": "Erken Kapatma",
+                "Label": "Erken Kapatma"
+              }
+            ],
+            "DefaultValue": "Taksit Ãdeme"
+          }
+        },
+        {
+          "Id": "tckn",
+          "Order": 2,
+          "FieldType": 1,
+          "Label": "TCKN-VKN",
+          "SectionId": "payment",
+          "Config": {
+            "Visible": true,
+            "Enabled": true,
+            "Required": true,
+            "MinLength": 10,
+            "MaxLength": 11,
+            "KeyboardType": 3,
+            "ValidationRules": [
+              {
+                "Type": 0,
+                "Pattern": "^[0-9]{10,11}$",
+                "ErrorMessage": "LÃ¼tfen geÃ§erli bir TCKN/VKN giriniz."
+              }
+            ]
+          }
+        },
+        {
+          "Id": "payment_amount",
+          "Order": 3,
+          "FieldType": 6,
+          "Label": "Tutar",
+          "SectionId": "payment",
+          "Config": {
+            "Visible": false,
+            "Enabled": true,
+            "Required": false,
+            "CurrencyName": "TL",
+            "KeyboardType": 3
+          },
+          "DependsOn": {
+            "FieldId": "debt_type",
+            "DefaultVisible": false,
+            "Rules": {
+              "Ara Ãdeme": {
+                "Visible": true,
+                "Enabled": true,
+                "Required": true,
+                "MinValue": 0,
+                "KeyboardType": 3
+              }
+            }
+          }
+        },
+        {
+          "Id": "info_01",
+          "Order": 4,
+          "FieldType": 8,
+          "Label": "Bireysel kredi kartlarÄ± ile anlÄ±k fatura Ã¶demelerinde, iÅlem tutarÄ± Ã¼zerinden 100 TL'ye kadar 3,50 TL, 100 TL Ã¼zeri Ã¶demelerde %3,50 masraf alÄ±nÄ±r.",
+          "SectionId": "payment",
+          "Config": {
+            "Visible": true,
+            "Enabled": true,
+            "Required": false
+          }
+        },
+        {
+          "Id": "info_02",
+          "Order": 5,
+          "FieldType": 8,
+          "Label": "Ticari kredi kartlarÄ± ile anlÄ±k fatura Ã¶demelerinde, nakit avans faiz oranÄ± Ã¼zerinden faiz iÅletilecektir.",
+          "SectionId": "payment",
+          "Config": {
+            "Visible": true,
+            "Enabled": true,
+            "Required": false
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "YY Spor",
+    "desc": "5 alan, 1 bölüm",
+    "json": {
+      "Sections": [
+        {
+          "Id": "payment",
           "Title": "ÖDEME BİLGİLERİ",
           "Order": 1
         }
@@ -15,7 +285,7 @@
           "Id": "infocard_01",
           "Order": 0,
           "FieldType": 7,
-          "Label": "İŞKUR",
+          "Label": "YYSpor",
           "SectionId": "payment",
           "Config": {
             "Visible": true,
@@ -135,135 +405,6 @@
                 "KeyboardType": 1
               }
             }
-          }
-        }
-      ]
-    }
-  },
-  {
-    "name": "Financell (Turkcell Finansman)",
-    "desc": "Taksit, ara odeme, erken kapatma (tutar dependency ornegi)",
-    "json": {
-      "Sections": [
-        {
-          "Id": "payment",
-          "Title": "ÖDEME BİLGİLERİ",
-          "Order": 1
-        }
-      ],
-      "FormFields": [
-        {
-          "Id": "infocard_01",
-          "Order": 0,
-          "FieldType": 7,
-          "Label": "Financell (Turkcell Finansman)",
-          "SectionId": "payment",
-          "Config": {
-            "Visible": true,
-            "Enabled": true,
-            "Required": false,
-            "Placeholder": "Kurum"
-          }
-        },
-        {
-          "Id": "debt_type",
-          "Order": 1,
-          "FieldType": 2,
-          "Label": "İşlem Tipi",
-          "SectionId": "payment",
-          "Config": {
-            "Visible": true,
-            "Enabled": true,
-            "Required": true,
-            "KeyboardType": 0,
-            "Options": [
-              {
-                "Value": "Taksit Ödeme",
-                "Label": "Taksit Ödeme"
-              },
-              {
-                "Value": "Ara Ödeme",
-                "Label": "Ara Ödeme"
-              },
-              {
-                "Value": "Erken Kapatma",
-                "Label": "Erken Kapatma"
-              }
-            ],
-            "DefaultValue": "Taksit Ödeme"
-          }
-        },
-        {
-          "Id": "tckn",
-          "Order": 2,
-          "FieldType": 1,
-          "Label": "TCKN-VKN",
-          "SectionId": "payment",
-          "Config": {
-            "Visible": true,
-            "Enabled": true,
-            "Required": true,
-            "MinLength": 10,
-            "MaxLength": 11,
-            "KeyboardType": 3,
-            "ValidationRules": [
-              {
-                "Type": 0,
-                "Pattern": "^[0-9]{10,11}$",
-                "ErrorMessage": "Lütfen geçerli bir TCKN/VKN giriniz."
-              }
-            ]
-          }
-        },
-        {
-          "Id": "payment_amount",
-          "Order": 3,
-          "FieldType": 6,
-          "Label": "Tutar",
-          "SectionId": "payment",
-          "Config": {
-            "Visible": false,
-            "Enabled": true,
-            "Required": false,
-            "CurrencyName": "TL",
-            "KeyboardType": 3
-          },
-          "DependsOn": {
-            "FieldId": "debt_type",
-            "DefaultVisible": false,
-            "Rules": {
-              "Ara Ödeme": {
-                "Visible": true,
-                "Enabled": true,
-                "Required": true,
-                "MinValue": 0,
-                "KeyboardType": 3
-              }
-            }
-          }
-        },
-        {
-          "Id": "info_01",
-          "Order": 4,
-          "FieldType": 8,
-          "Label": "Bireysel kredi kartları ile anlık fatura ödemelerinde, işlem tutarı üzerinden 100 TL'ye kadar 3,50 TL, 100 TL üzeri ödemelerde %3,50 masraf alınır.",
-          "SectionId": "payment",
-          "Config": {
-            "Visible": true,
-            "Enabled": true,
-            "Required": false
-          }
-        },
-        {
-          "Id": "info_02",
-          "Order": 5,
-          "FieldType": 8,
-          "Label": "Ticari kredi kartları ile anlık fatura ödemelerinde, nakit avans faiz oranı üzerinden faiz işletilecektir.",
-          "SectionId": "payment",
-          "Config": {
-            "Visible": true,
-            "Enabled": true,
-            "Required": false
           }
         }
       ]
