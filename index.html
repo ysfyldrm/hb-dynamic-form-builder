@@ -17,37 +17,86 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useCallback, useRef, useEffect, useMemo } = React;
+const { useState, useReducer, useCallback, useRef, useEffect, useMemo } = React;
+
 
 
 // ═══════════════════════════════════════════════════════════════
-// CONSTANTS
+// ENUM CONSTANTS (matching Dynamic Form API Specification v2.0)
+// ═══════════════════════════════════════════════════════════════
+const FieldType = {
+  Input: 1,        // Metin girişi
+  Dropdown: 2,     // Açılır liste
+  RadioGroup: 3,   // Radio buton grubu
+  Checkbox: 4,     // Onay kutusu
+  DatePicker: 5,   // Tarih seçici
+  AmountInput: 6,  // Para tutarı girişi
+  InfoCard: 7,     // Bilgi kartı (display-only)
+  InfoText: 8,     // Bilgi metni (display-only)
+};
+
+const KbType = {
+  Default: 0,  // Varsayılan
+  Text: 1,     // Genel klavye
+  Number: 2,   // Sadece rakam
+  Decimal: 3,  // Ondalık sayı
+  Phone: 4,    // Telefon
+  Email: 5,    // E-posta
+};
+
+const ValType = {
+  None: 0,     // Validasyon yok (custom regex)
+  Tckn: 1,     // TC Kimlik No
+  Vkn: 2,      // Vergi Kimlik No
+  Iban: 3,     // IBAN formatı
+  Email: 4,    // E-posta formatı
+  Phone: 5,    // Telefon formatı
+};
+
+const TrailType = {
+  None: 0,      // Aksiyon yok
+  QrScan: 1,    // QR kod okutma
+  OcrScan: 2,   // OCR tarama
+  Contacts: 3,  // Rehberden seçim
+  Calendar: 4,  // Takvim açma
+  Info: 5,      // Bilgi gösterme
+  Copy: 6,      // Kopyalama
+};
+
+const LinkAction = {
+  Url: 1,     // URL açma
+  Popup: 2,   // Popup gösterme
+  Image: 3,   // Resim gösterme
+};
+
+// ═══════════════════════════════════════════════════════════════
+// TYPE METADATA ARRAYS
 // ═══════════════════════════════════════════════════════════════
 const FIELD_TYPES = [
-  { value: 1, label: "Input", icon: "✏️", desc: "Metin girişi" },
-  { value: 2, label: "Dropdown", icon: "📋", desc: "Açılır liste" },
-  { value: 3, label: "Checkbox", icon: "☑️", desc: "Onay kutusu" },
-  { value: 4, label: "RadioGroup", icon: "🔘", desc: "Radio seçim" },
-  { value: 5, label: "DatePicker", icon: "📅", desc: "Tarih seçici" },
-  { value: 6, label: "AmountInput", icon: "💰", desc: "Tutar girişi" },
-  { value: 7, label: "InfoCard", icon: "ℹ️", desc: "Bilgi kartı" },
-  { value: 8, label: "InfoText", icon: "📝", desc: "Bilgi metni" },
+  { value: FieldType.Input, label: "Input", icon: "✏️", desc: "Metin girişi" },
+  { value: FieldType.Dropdown, label: "Dropdown", icon: "📋", desc: "Açılır liste" },
+  { value: FieldType.RadioGroup, label: "RadioGroup", icon: "🔘", desc: "Radio seçim" },
+  { value: FieldType.Checkbox, label: "Checkbox", icon: "☑️", desc: "Onay kutusu" },
+  { value: FieldType.DatePicker, label: "DatePicker", icon: "📅", desc: "Tarih seçici" },
+  { value: FieldType.AmountInput, label: "AmountInput", icon: "💰", desc: "Tutar girişi" },
+  { value: FieldType.InfoCard, label: "InfoCard", icon: "ℹ️", desc: "Bilgi kartı" },
+  { value: FieldType.InfoText, label: "InfoText", icon: "📝", desc: "Bilgi metni" },
 ];
 const KEYBOARD_TYPES = [
-  { value: 0, label: "Varsayılan" }, { value: 1, label: "Metin" },
-  { value: 2, label: "Sayı" }, { value: 3, label: "Ondalık" },
-  { value: 4, label: "Telefon" }, { value: 5, label: "E-posta" },
+  { value: KbType.Default, label: "Varsayılan" }, { value: KbType.Text, label: "Metin" },
+  { value: KbType.Number, label: "Sayı" }, { value: KbType.Decimal, label: "Ondalık" },
+  { value: KbType.Phone, label: "Telefon" }, { value: KbType.Email, label: "E-posta" },
 ];
 const VALIDATION_TYPES = [
-  { value: 0, label: "Yok (Regex)" }, { value: 1, label: "TCKN" },
-  { value: 2, label: "VKN" }, { value: 3, label: "IBAN" },
-  { value: 4, label: "E-posta" }, { value: 5, label: "Telefon" },
+  { value: ValType.None, label: "Yok (Regex)" }, { value: ValType.Tckn, label: "TCKN" },
+  { value: ValType.Vkn, label: "VKN" }, { value: ValType.Iban, label: "IBAN" },
+  { value: ValType.Email, label: "E-posta" }, { value: ValType.Phone, label: "Telefon" },
 ];
 const TRAILING_TYPES = [
-  { value: 0, label: "Yok" }, { value: 1, label: "QR Tarama" }, { value: 2, label: "OCR Tarama" },
-  { value: 3, label: "Kişiler" }, { value: 4, label: "Takvim" }, { value: 5, label: "Bilgi" }, { value: 6, label: "Kopyala" },
+  { value: TrailType.None, label: "Yok" }, { value: TrailType.QrScan, label: "QR Tarama" }, { value: TrailType.OcrScan, label: "OCR Tarama" },
+  { value: TrailType.Contacts, label: "Kişiler" }, { value: TrailType.Calendar, label: "Takvim" }, { value: TrailType.Info, label: "Bilgi" }, { value: TrailType.Copy, label: "Kopyala" },
 ];
-const LINK_ACTION_TYPES = [{ value: 1, label: "URL Aç" }, { value: 2, label: "Popup Göster" }, { value: 3, label: "Resim Göster" }];
+const LINK_ACTION_TYPES = [{ value: LinkAction.Url, label: "URL Aç" }, { value: LinkAction.Popup, label: "Popup Göster" }, { value: LinkAction.Image, label: "Resim Göster" }];
 
 const C = {
   bg: "#0f0f1a", surface: "#1a1a2e", surface2: "#222240", border: "#2a2a4a",
@@ -65,6 +114,64 @@ const loadCustomTemplates = () => { try { return JSON.parse(localStorage.getItem
 const saveCustomTemplates = (t) => { try { localStorage.setItem("dfb_templates", JSON.stringify(t)); } catch {} };
 const GITHUB_TEMPLATES_URL = (() => { try { const base = location.origin + location.pathname.replace(/\/[^\/]*$/, "/"); return base + "templates.json"; } catch { return null; } })();
 const fetchGithubTemplates = async () => { if (!GITHUB_TEMPLATES_URL) return []; try { const res = await fetch(GITHUB_TEMPLATES_URL + "?t=" + Date.now()); if (!res.ok) return []; const data = await res.json(); return Array.isArray(data) ? data.map(t => ({ ...t, remote: true })) : []; } catch { return []; } };
+
+// ── GitHub PR: repo detection + API ──
+const getGitHubRepo = () => {
+  try {
+    const h = location.hostname;
+    if (h.endsWith(".github.io")) {
+      const owner = h.replace(".github.io", "");
+      const repo = location.pathname.split("/").filter(Boolean)[0];
+      if (owner && repo) return { owner, repo };
+    }
+  } catch {}
+  return null;
+};
+const getGitHubToken = () => { try { return localStorage.getItem("dfb_github_token") || ""; } catch { return ""; } };
+const setGitHubToken = (t) => { try { localStorage.setItem("dfb_github_token", t); } catch {} };
+
+const createTemplatePR = async (token, templateName, templateDesc, templateJson) => {
+  const gh = getGitHubRepo();
+  if (!gh) throw new Error("GitHub repo tespit edilemedi. Bu sayfa GitHub Pages'te mi?");
+  if (!token) throw new Error("GitHub token gerekli");
+  const { owner, repo } = gh;
+  const api = (path, opts = {}) => fetch(`https://api.github.com/repos/${owner}/${repo}${path}`, {
+    ...opts,
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "Content-Type": "application/json", ...opts.headers },
+  }).then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.message || `GitHub API ${r.status}`); return d; });
+
+  // 1. Get current templates.json
+  const file = await api("/contents/templates.json");
+  const currentContent = JSON.parse(atob(file.content.replace(/\n/g, "")));
+  const templates = Array.isArray(currentContent) ? currentContent : [];
+
+  // 2. Add new template
+  const newTemplate = { name: templateName, desc: templateDesc, json: templateJson };
+  templates.push(newTemplate);
+  const updatedContent = btoa(unescape(encodeURIComponent(JSON.stringify(templates, null, 2))));
+
+  // 3. Get main branch SHA
+  const mainRef = await api("/git/ref/heads/main");
+  const mainSha = mainRef.object.sha;
+
+  // 4. Create branch
+  const branchName = `template/${templateName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`;
+  await api("/git/refs", { method: "POST", body: JSON.stringify({ ref: `refs/heads/${branchName}`, sha: mainSha }) });
+
+  // 5. Update file on branch
+  await api("/contents/templates.json", {
+    method: "PUT",
+    body: JSON.stringify({ message: `feat: add "${templateName}" template`, content: updatedContent, sha: file.sha, branch: branchName }),
+  });
+
+  // 6. Create PR
+  const pr = await api("/pulls", {
+    method: "POST",
+    body: JSON.stringify({ title: `Add template: ${templateName}`, head: branchName, base: "main", body: `## New Template\n- **Name:** ${templateName}\n- **Description:** ${templateDesc}\n- **Fields:** ${templateJson.FormFields?.length || 0}\n- **Sections:** ${templateJson.Sections?.length || 0}` }),
+  });
+
+  return pr.html_url;
+};
 const generateShareUrl = (j) => { try { return `${location.origin}${location.pathname}#${btoa(unescape(encodeURIComponent(JSON.stringify(j))))}`; } catch { return null; } };
 
 // ── Cloud Storage: Simple request servisleri (preflight yok!) ──
@@ -175,11 +282,11 @@ const parseShareUrl = () => { try { const h = location.hash.slice(1); return h ?
 const generateQR = (data, s) => `https://api.qrserver.com/v1/create-qr-code/?size=${s}x${s}&data=${encodeURIComponent(data)}&bgcolor=FFFFFF&color=000000&format=png&ecc=L&margin=6`;
 const stripTypeFields = (o) => { if (Array.isArray(o)) return o.map(stripTypeFields); if (o && typeof o === "object") { const r = {}; for (const [k, v] of Object.entries(o)) { if (k === "__type" || k === "RawOptions") continue; r[k] = stripTypeFields(v); } return r; } return o; };
 const extractFormData = (raw) => { let o = raw; if (o.Data && Array.isArray(o.Data) && o.Data.length > 0) o = o.Data[0]; o = stripTypeFields(o); if (o.FormFields) return o; for (const v of Object.values(o)) { if (v && typeof v === "object" && v.FormFields) return stripTypeFields(v); } return o; };
-const createEmptyField = (order, ft = 1, sid = "main") => {
+const createEmptyField = (order, ft = FieldType.Input, sid = "main") => {
   const b = { Id: `field_${Date.now().toString(36)}`, Order: order, FieldType: ft, Label: "", SectionId: sid, Config: { Visible: true, Enabled: true, Required: false } };
-  if (ft === 2 || ft === 4) b.Config.Options = [{ Value: "opt1", Label: "Seçenek 1" }, { Value: "opt2", Label: "Seçenek 2" }];
-  if (ft === 1) b.Config.KeyboardType = 1;
-  if (ft === 6) { b.Config.KeyboardType = 3; b.Config.Placeholder = "0,00"; }
+  if (ft === FieldType.Dropdown || ft === FieldType.RadioGroup) b.Config.Options = [{ Value: "opt1", Label: "Seçenek 1" }, { Value: "opt2", Label: "Seçenek 2" }];
+  if (ft === FieldType.Input) b.Config.KeyboardType = KbType.Text;
+  if (ft === FieldType.AmountInput) { b.Config.KeyboardType = KbType.Decimal; b.Config.Placeholder = "0,00"; }
   return b;
 };
 
@@ -449,12 +556,12 @@ const runValidation = (value, field) => {
 
   (cfg.ValidationRules || []).forEach(rule => {
     const t = rule.Type;
-    if (t === 0 && rule.Pattern) { try { if (!new RegExp(rule.Pattern).test(value)) errors.push(rule.ErrorMessage || "Geçersiz format"); } catch {} }
-    if (t === 1 && !validateTCKN(value)) errors.push(rule.ErrorMessage || "Geçerli TCKN giriniz");
-    if (t === 2 && !validateVKN(value)) errors.push(rule.ErrorMessage || "Geçerli VKN giriniz");
-    if (t === 3 && !validateIBAN(value)) errors.push(rule.ErrorMessage || "Geçerli IBAN giriniz");
-    if (t === 4 && !validateEmail(value)) errors.push(rule.ErrorMessage || "Geçerli e-posta giriniz");
-    if (t === 5 && !validatePhone(value)) errors.push(rule.ErrorMessage || "Geçerli telefon giriniz");
+    if (t === ValType.None && rule.Pattern) { try { if (!new RegExp(rule.Pattern).test(value)) errors.push(rule.ErrorMessage || "Geçersiz format"); } catch {} }
+    if (t === ValType.Tckn && !validateTCKN(value)) errors.push(rule.ErrorMessage || "Geçerli TCKN giriniz");
+    if (t === ValType.Vkn && !validateVKN(value)) errors.push(rule.ErrorMessage || "Geçerli VKN giriniz");
+    if (t === ValType.Iban && !validateIBAN(value)) errors.push(rule.ErrorMessage || "Geçerli IBAN giriniz");
+    if (t === ValType.Email && !validateEmail(value)) errors.push(rule.ErrorMessage || "Geçerli e-posta giriniz");
+    if (t === ValType.Phone && !validatePhone(value)) errors.push(rule.ErrorMessage || "Geçerli telefon giriniz");
   });
   return errors;
 };
@@ -511,7 +618,7 @@ function FieldPreview({ field }) {
     const dv = field?.Config?.DefaultValue || "";
     setRawValue(dv);
     setValidated(false);
-    if (field?.FieldType === 2 && dv && field?.Config?.Options) {
+    if (field?.FieldType === FieldType.Dropdown && dv && field?.Config?.Options) {
       const idx = field.Config.Options.findIndex(o => o.Value === dv);
       setSelectedOpt(idx >= 0 ? field.Config.Options[idx] : null);
     } else { setSelectedOpt(null); }
@@ -582,7 +689,7 @@ function FieldPreview({ field }) {
     </div>
   ) : null;
 
-  const counterEl = (ft === 1 || ft === 6) ? (
+  const counterEl = (ft === FieldType.Input || ft === FieldType.AmountInput) ? (
     <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 10, fontFamily: sans }}>
       <span style={{ color: charCount > 0 && maxLen && charCount > maxLen ? "#ef4444" : "#9ca3af" }}>
         {charCount}{maxLen ? ` / ${maxLen}` : maskMaxRaw ? ` / ${maskMaxRaw}` : ""} karakter
@@ -592,7 +699,8 @@ function FieldPreview({ field }) {
   ) : null;
 
   // Validate + Reset buttons (shown for all interactive types)
-  const actionBar = (ft <= 6) ? (
+  const isInteractive = ft >= FieldType.Input && ft <= FieldType.AmountInput;
+  const actionBar = isInteractive ? (
     <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
       <button onClick={handleValidate} style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: "none", background: "#3b82f6", color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: sans, cursor: "pointer", transition: "background 0.15s" }}>
         ✓ Doğrula
@@ -616,8 +724,8 @@ function FieldPreview({ field }) {
     );
   }
 
-  // Input (1)
-  if (ft === 1) {
+  // Input
+  if (ft === FieldType.Input) {
     return (
       <div style={wrap}>
         <div style={labelStyle}>{label}{reqDot}</div>
@@ -633,8 +741,8 @@ function FieldPreview({ field }) {
     );
   }
 
-  // Dropdown (2)
-  if (ft === 2) {
+  // Dropdown
+  if (ft === FieldType.Dropdown) {
     return (
       <div style={wrap}>
         <div style={labelStyle}>{label}{reqDot}</div>
@@ -659,8 +767,8 @@ function FieldPreview({ field }) {
     );
   }
 
-  // Checkbox (3)
-  if (ft === 3) {
+  // Checkbox
+  if (ft === FieldType.Checkbox) {
     return (
       <div style={wrap}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => { setChecked(!checked); setRawValue(!checked ? "true" : ""); if (validated) setValidated(false); }}>
@@ -676,8 +784,8 @@ function FieldPreview({ field }) {
     );
   }
 
-  // RadioGroup (4)
-  if (ft === 4) {
+  // RadioGroup
+  if (ft === FieldType.RadioGroup) {
     const opts = cfg.Options?.length > 0 ? cfg.Options : [{ Value: "opt1", Label: "Seçenek 1" }, { Value: "opt2", Label: "Seçenek 2" }];
     return (
       <div style={wrap}>
@@ -699,8 +807,8 @@ function FieldPreview({ field }) {
     );
   }
 
-  // DatePicker (5)
-  if (ft === 5) {
+  // DatePicker
+  if (ft === FieldType.DatePicker) {
     return (
       <div style={wrap}>
         <div style={labelStyle}>{label}{reqDot}</div>
@@ -713,8 +821,8 @@ function FieldPreview({ field }) {
     );
   }
 
-  // AmountInput (6)
-  if (ft === 6) {
+  // AmountInput
+  if (ft === FieldType.AmountInput) {
     const currency = cfg.CurrencyName || "₺";
     return (
       <div style={wrap}>
@@ -740,8 +848,8 @@ function FieldPreview({ field }) {
     );
   }
 
-  // InfoCard (7)
-  if (ft === 7) {
+  // InfoCard
+  if (ft === FieldType.InfoCard) {
     return (
       <div style={{ ...wrap, background: "#eff6ff", border: "1px solid #bfdbfe" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -755,8 +863,8 @@ function FieldPreview({ field }) {
     );
   }
 
-  // InfoText (8)
-  if (ft === 8) {
+  // InfoText
+  if (ft === FieldType.InfoText) {
     const link = cfg.Link;
     return (
       <div style={wrap}>
@@ -769,7 +877,7 @@ function FieldPreview({ field }) {
               🔗 {link.Text}
             </span>
             <span style={{ fontSize: 9, color: "#9ca3af", marginLeft: 6, fontFamily: sans }}>
-              ({link.ActionType === 1 ? "URL" : link.ActionType === 2 ? "Popup" : link.ActionType === 3 ? "Resim" : "Link"})
+              ({link.ActionType === LinkAction.Url ? "URL" : link.ActionType === LinkAction.Popup ? "Popup" : link.ActionType === LinkAction.Image ? "Resim" : "Link"})
             </span>
           </div>
         )}
@@ -836,10 +944,10 @@ function Section({ title, children, defaultOpen, count }) {
 function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onClose }) {
   if (!field) return null;
   const ft = field.FieldType;
-  const hasOpts = ft === 2 || ft === 4; // Dropdown, RadioGroup
-  const isInputLike = ft === 1 || ft === 6; // Input, AmountInput
-  const isAmt = ft === 6;
-  const isInfo = ft === 7 || ft === 8;
+  const hasOpts = ft === FieldType.Dropdown || ft === FieldType.RadioGroup;
+  const isInputLike = ft === FieldType.Input || ft === FieldType.AmountInput;
+  const isAmt = ft === FieldType.AmountInput;
+  const isInfo = ft === FieldType.InfoCard || ft === FieldType.InfoText;
   const others = allFields.filter((f) => f.Id !== field.Id);
   const inp = { width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: C.text, padding: "8px 10px", borderRadius: 6, fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
   const smInp = { ...inp, fontSize: 12 };
@@ -974,7 +1082,7 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
                 </select>
                 <Label text="Hata Mesajı" />
                 <input style={{ ...smInp, marginTop: 2 }} value={rule.ErrorMessage || ""} onChange={(e) => upVal(idx, { ErrorMessage: e.target.value })} placeholder="Geçersiz değer girildi" />
-                {rule.Type === 0 && <><Label text="Regex Pattern" /><input style={{ ...smInp, marginTop: 2 }} value={rule.Pattern || ""} onChange={(e) => upVal(idx, { Pattern: e.target.value })} placeholder="^[0-9]{10,11}$" /></>}
+                {rule.Type === ValType.None && <><Label text="Regex Pattern" /><input style={{ ...smInp, marginTop: 2 }} value={rule.Pattern || ""} onChange={(e) => upVal(idx, { Pattern: e.target.value })} placeholder="^[0-9]{10,11}$" /></>}
               </div>
             ))}
             <button style={{ background: "none", border: `1px dashed ${C.accent}60`, color: C.accent, padding: "5px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, marginTop: 4 }} onClick={addVal}>+ Doğrulama Kuralı</button>
@@ -1005,10 +1113,10 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
         )}
 
         {/* ── Link (FieldLink) — sadece InfoText ── */}
-        {ft === 8 && (
+        {ft === FieldType.InfoText && (
         <Section title="Link" defaultOpen={!!field.Config?.Link}>
           {!field.Config?.Link ? (
-            <button style={{ background: "none", border: `1px dashed ${C.accent}60`, color: C.accent, padding: "5px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} onClick={() => upLink({ ActionType: 1 })}>+ Link Ekle</button>
+            <button style={{ background: "none", border: `1px dashed ${C.accent}60`, color: C.accent, padding: "5px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} onClick={() => upLink({ ActionType: LinkAction.Url })}>+ Link Ekle</button>
           ) : (
             <div style={{ background: C.bg, borderRadius: 6, padding: 10, border: `1px solid ${C.border}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -1018,16 +1126,16 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
               <Label text="Link Metni" />
               <input style={smInp} value={field.Config.Link.Text || ""} onChange={(e) => upLink({ Text: e.target.value })} placeholder="Detaylar için tıklayın" />
               <Label text="Aksiyon Tipi" />
-              <select style={smInp} value={field.Config.Link.ActionType ?? 1} onChange={(e) => upLink({ ActionType: parseInt(e.target.value) })}>
+              <select style={smInp} value={field.Config.Link.ActionType ?? LinkAction.Url} onChange={(e) => upLink({ ActionType: parseInt(e.target.value) })}>
                 {LINK_ACTION_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
-              {(field.Config.Link.ActionType === 1 || !field.Config.Link.ActionType) && (
+              {(field.Config.Link.ActionType === LinkAction.Url || !field.Config.Link.ActionType) && (
                 <><Label text="URL" /><input style={smInp} value={field.Config.Link.Url || ""} onChange={(e) => upLink({ Url: e.target.value })} placeholder="https://..." /></>
               )}
-              {field.Config.Link.ActionType === 3 && (
+              {field.Config.Link.ActionType === LinkAction.Image && (
                 <><Label text="Resim URL" /><input style={smInp} value={field.Config.Link.ImageUrl || ""} onChange={(e) => upLink({ ImageUrl: e.target.value })} placeholder="https://...image.png" /></>
               )}
-              {field.Config.Link.ActionType === 2 && (
+              {field.Config.Link.ActionType === LinkAction.Popup && (
                 <>
                   <Label text="Popup Başlık" /><input style={smInp} value={field.Config.Link.PopupTitle || ""} onChange={(e) => upLink({ PopupTitle: e.target.value })} />
                   <Label text="Popup İçerik" /><textarea style={{ ...smInp, minHeight: 50, resize: "vertical" }} value={field.Config.Link.PopupContent || ""} onChange={(e) => upLink({ PopupContent: e.target.value })} />
@@ -1042,7 +1150,7 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
         {!isInfo && (
           <Section title="Sağ Aksiyon (Trailing)" defaultOpen={!!field.Config?.TrailingAction}>
             {!field.Config?.TrailingAction ? (
-              <button style={{ background: "none", border: `1px dashed ${C.accent}60`, color: C.accent, padding: "5px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} onClick={() => upTrail({ Type: 1 })}>+ Aksiyon Ekle</button>
+              <button style={{ background: "none", border: `1px dashed ${C.accent}60`, color: C.accent, padding: "5px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} onClick={() => upTrail({ Type: TrailType.QrScan })}>+ Aksiyon Ekle</button>
             ) : (
               <div style={{ background: C.bg, borderRadius: 6, padding: 10, border: `1px solid ${C.border}` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -1050,15 +1158,15 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
                   <button style={{ background: C.danger + "20", border: "none", color: C.danger, width: 22, height: 22, borderRadius: 4, cursor: "pointer", fontSize: 11 }} onClick={clearTrail}>✕</button>
                 </div>
                 <Label text="Tip" />
-                <select style={smInp} value={field.Config.TrailingAction.Type ?? 0} onChange={(e) => upTrail({ Type: parseInt(e.target.value) })}>
+                <select style={smInp} value={field.Config.TrailingAction.Type ?? TrailType.None} onChange={(e) => upTrail({ Type: parseInt(e.target.value) })}>
                   {TRAILING_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
-                {field.Config.TrailingAction.Type === 2 && (
+                {field.Config.TrailingAction.Type === TrailType.OcrScan && (
                   <><Label text="OCR Pattern" /><input style={smInp} value={field.Config.TrailingAction.Pattern || ""} onChange={(e) => upTrail({ Pattern: e.target.value })} placeholder="Regex" /></>
                 )}
                 <Label text="Arama Alanı (SearchField)" />
                 <input style={smInp} value={field.Config.TrailingAction.SearchField || ""} onChange={(e) => upTrail({ SearchField: e.target.value || undefined })} placeholder="Opsiyonel" />
-                {field.Config.TrailingAction.Type === 5 && (
+                {field.Config.TrailingAction.Type === TrailType.Info && (
                   <><Label text="Bilgi Mesajı" /><textarea style={{ ...smInp, minHeight: 50, resize: "vertical" }} value={field.Config.TrailingAction.InfoMessage || ""} onChange={(e) => upTrail({ InfoMessage: e.target.value })} /></>
                 )}
               </div>
@@ -1160,32 +1268,129 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
 }
 
 // ═══════════════════════════════════════════════════════════════
+// FORM STATE REDUCER
+// ═══════════════════════════════════════════════════════════════
+const DEFAULT_SECTION = { Id: "main", Title: "FORM", Order: 1 };
+
+const initialFormState = {
+  sections: [DEFAULT_SECTION],
+  fields: [],
+  editingField: null,
+  activeSection: "main",
+};
+
+function formReducer(state, action) {
+  switch (action.type) {
+    case 'LOAD_FORM': {
+      const { sections, fields } = action;
+      return {
+        ...state,
+        sections: sections || state.sections,
+        fields: (fields || state.fields).sort((a, b) => (a.Order ?? 0) - (b.Order ?? 0)),
+        editingField: null,
+        activeSection: sections?.[0]?.Id || state.activeSection,
+      };
+    }
+    case 'SET_SECTIONS':
+      return { ...state, sections: action.sections };
+    case 'SET_FIELDS':
+      return { ...state, fields: action.fields };
+    case 'SET_EDITING':
+      return { ...state, editingField: action.id };
+    case 'SET_ACTIVE_SECTION':
+      return { ...state, activeSection: action.id };
+    case 'ADD_SECTION': {
+      const id = `sec_${Date.now().toString(36)}`;
+      return {
+        ...state,
+        sections: [...state.sections, { Id: id, Title: "YENİ BÖLÜM", Order: state.sections.length + 1 }],
+        activeSection: id,
+      };
+    }
+    case 'UPDATE_SECTION':
+      return { ...state, sections: state.sections.map(s => s.Id === action.id ? { ...s, ...action.updates } : s) };
+    case 'REMOVE_SECTION': {
+      if (state.sections.length <= 1) return state;
+      const remaining = state.sections.filter(s => s.Id !== action.id);
+      const fallbackId = remaining[0]?.Id;
+      return {
+        ...state,
+        sections: remaining,
+        fields: state.fields.map(f => f.SectionId === action.id ? { ...f, SectionId: fallbackId } : f),
+        activeSection: state.activeSection === action.id ? fallbackId : state.activeSection,
+      };
+    }
+    case 'ADD_FIELD': {
+      const field = createEmptyField(state.fields.length + 1, action.fieldType, state.activeSection);
+      return { ...state, fields: [...state.fields, field], editingField: field.Id };
+    }
+    case 'INSERT_FIELD': {
+      const field = createEmptyField(action.index + 1, action.fieldType, state.activeSection);
+      const updated = [...state.fields];
+      updated.splice(action.index, 0, field);
+      return { ...state, fields: updated.map((f, i) => ({ ...f, Order: i + 1 })), editingField: field.Id };
+    }
+    case 'UPDATE_FIELD':
+      return { ...state, fields: state.fields.map(f => f.Id === action.id ? { ...f, ...action.updates } : f) };
+    case 'UPDATE_FIELD_CONFIG':
+      return { ...state, fields: state.fields.map(f => f.Id !== action.id ? f : { ...f, Config: { ...f.Config, ...action.updates } }) };
+    case 'REMOVE_FIELD': {
+      const newFields = state.fields.filter(f => f.Id !== action.id).map((f, i) => ({ ...f, Order: i + 1 }));
+      return { ...state, fields: newFields, editingField: state.editingField === action.id ? null : state.editingField };
+    }
+    case 'DUPLICATE_FIELD': {
+      const source = state.fields.find(f => f.Id === action.id);
+      if (!source) return state;
+      const dup = JSON.parse(JSON.stringify(source));
+      dup.Id = `field_${Date.now().toString(36)}`;
+      dup.Order = state.fields.length + 1;
+      dup.Label = `${source.Label || ""} (kopya)`;
+      return { ...state, fields: [...state.fields, dup] };
+    }
+    case 'REORDER_FIELDS': {
+      const reordered = [...state.fields];
+      const [moved] = reordered.splice(action.fromIndex, 1);
+      reordered.splice(action.toIndex, 0, moved);
+      return { ...state, fields: reordered.map((f, i) => ({ ...f, Order: i + 1 })) };
+    }
+    default:
+      return state;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════
 function DynamicFormBuilder() {
+  // Core form state (centralized via reducer)
+  const [form, dispatch] = useReducer(formReducer, initialFormState);
+  const { sections, fields, editingField, activeSection } = form;
+
+  // UI state
   const [activeTab, setActiveTab] = useState("builder");
-  const [sections, setSections] = useState([{ Id: "main", Title: "FORM", Order: 1 }]);
-  const [fields, setFields] = useState([]);
-  const [editingField, setEditingField] = useState(null);
-  const [activeSection, setActiveSection] = useState("main");
   const [toast, setToast] = useState(null);
+  const [dragIdx, setDragIdx] = useState(null);
+
+  // Template state
   const [customTemplates, setCustomTemplates] = useState(loadCustomTemplates);
   const [remoteTemplates, setRemoteTemplates] = useState([]);
-  useEffect(() => { fetchGithubTemplates().then(setRemoteTemplates).catch(() => {}); }, []);
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState("");
-  const [shareUrl, setShareUrl] = useState(null);
-  const [qrPayload, setQrPayload] = useState(null);
-  const [qrMode, setQrMode] = useState(null); // "blob" or "compressed"
-  const [showQR, setShowQR] = useState(false);
-  const [qrLoading, setQrLoading] = useState(false);
-  const [dragIdx, setDragIdx] = useState(null);
+  const [ghToken, setGhToken] = useState(getGitHubToken);
+  const [prLoading, setPrLoading] = useState(false);
+  const [showTokenInput, setShowTokenInput] = useState(false);
+  useEffect(() => { fetchGithubTemplates().then(setRemoteTemplates).catch(() => {}); }, []);
+
+  // Share/QR state
+  const [share, setShare] = useState({ url: null, qrPayload: null, qrMode: null, showQR: false, qrLoading: false });
+
+  // JSON editor state
   const [jsonText, setJsonText] = useState("");
   const [jsonError, setJsonError] = useState(null);
   const jsonDb = useRef(null);
   const fileRef = useRef(null);
 
-  useEffect(() => { const s = parseShareUrl(); if (s) { if (s.Sections) setSections(s.Sections); if (s.FormFields) setFields(s.FormFields); showToastMsg("Paylaşılan form yüklendi!"); } }, []);
+  useEffect(() => { const s = parseShareUrl(); if (s) { dispatch({ type: 'LOAD_FORM', sections: s.Sections, fields: s.FormFields }); showToastMsg("Paylaşılan form yüklendi!"); } }, []);
   useEffect(() => { if (activeTab === "json") { setJsonText(JSON.stringify({ Sections: sections, FormFields: fields }, null, 2)); setJsonError(null); } }, [activeTab]);
 
   const showToastMsg = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
@@ -1195,66 +1400,84 @@ function DynamicFormBuilder() {
   const handleJsonEdit = (text) => {
     setJsonText(text);
     if (jsonDb.current) clearTimeout(jsonDb.current);
-    jsonDb.current = setTimeout(() => { try { const p = JSON.parse(text); if (p.Sections) setSections(p.Sections); if (p.FormFields) setFields(p.FormFields); setJsonError(null); } catch (e) { setJsonError(e.message); } }, 800);
+    jsonDb.current = setTimeout(() => { try { const p = JSON.parse(text); dispatch({ type: 'SET_SECTIONS', sections: p.Sections || sections }); dispatch({ type: 'SET_FIELDS', fields: p.FormFields || fields }); setJsonError(null); } catch (e) { setJsonError(e.message); } }, 800);
   };
 
   // File upload
   const handleFileUpload = (e) => {
     const f = e.target.files?.[0]; if (!f) return;
     const r = new FileReader();
-    r.onload = (ev) => { try { const raw = JSON.parse(ev.target.result); const c = extractFormData(raw); if (c.Sections) setSections(c.Sections); if (c.FormFields) setFields(c.FormFields.sort((a, b) => (a.Order ?? 0) - (b.Order ?? 0))); setActiveTab("builder"); setActiveSection(c.Sections?.[0]?.Id || "main"); showToastMsg("JSON yüklendi! (__type temizlendi)"); } catch { showToastMsg("Hata: Geçersiz JSON"); } };
+    r.onload = (ev) => { try { const raw = JSON.parse(ev.target.result); const c = extractFormData(raw); dispatch({ type: 'LOAD_FORM', sections: c.Sections, fields: c.FormFields }); setActiveTab("builder"); showToastMsg("JSON yüklendi! (__type temizlendi)"); } catch { showToastMsg("Hata: Geçersiz JSON"); } };
     r.readAsText(f); e.target.value = "";
   };
 
   // Section CRUD
-  const addSection = () => { const id = `sec_${Date.now().toString(36)}`; setSections((p) => [...p, { Id: id, Title: "YENİ BÖLÜM", Order: p.length + 1 }]); setActiveSection(id); };
-  const updateSection = (id, u) => setSections((p) => p.map((s) => s.Id === id ? { ...s, ...u } : s));
-  const removeSection = (id) => { if (sections.length <= 1) return; setSections((p) => p.filter((s) => s.Id !== id)); setFields((p) => p.map((f) => f.SectionId === id ? { ...f, SectionId: sections.find((s) => s.Id !== id)?.Id } : f)); if (activeSection === id) setActiveSection(sections.find((s) => s.Id !== id)?.Id); };
+  const addSection = () => dispatch({ type: 'ADD_SECTION' });
+  const updateSection = (id, updates) => dispatch({ type: 'UPDATE_SECTION', id, updates });
+  const removeSection = (id) => dispatch({ type: 'REMOVE_SECTION', id });
 
   // Field CRUD
-  const addField = (ft = 1) => { const f = createEmptyField(fields.length + 1, ft, activeSection); setFields((p) => [...p, f]); setEditingField(f.Id); };
-  const updateField = (id, u) => setFields((fs) => fs.map((f) => f.Id === id ? { ...f, ...u } : f));
-  const updateFieldConfig = (id, cu) => setFields((fs) => fs.map((f) => f.Id !== id ? f : { ...f, Config: { ...f.Config, ...cu } }));
-  const removeField = (id) => { setFields((fs) => fs.filter((f) => f.Id !== id).map((f, i) => ({ ...f, Order: i + 1 }))); if (editingField === id) setEditingField(null); };
-  const duplicateField = (id) => { const s = fields.find((f) => f.Id === id); if (!s) return; const d = JSON.parse(JSON.stringify(s)); d.Id = `field_${Date.now().toString(36)}`; d.Order = fields.length + 1; d.Label = `${s.Label || ""} (kopya)`; setFields((p) => [...p, d]); showToastMsg("Kopyalandı!"); };
+  const addField = (ft = FieldType.Input) => dispatch({ type: 'ADD_FIELD', fieldType: ft });
+  const updateField = (id, updates) => dispatch({ type: 'UPDATE_FIELD', id, updates });
+  const updateFieldConfig = (id, updates) => dispatch({ type: 'UPDATE_FIELD_CONFIG', id, updates });
+  const removeField = (id) => dispatch({ type: 'REMOVE_FIELD', id });
+  const duplicateField = (id) => { dispatch({ type: 'DUPLICATE_FIELD', id }); showToastMsg("Kopyalandı!"); };
 
-  // Drag
+  // Drag & Drop
   const handleDrop = (e, idx) => {
     const pt = e.dataTransfer.getData("palette-type");
-    if (pt) { const f = createEmptyField(idx + 1, parseInt(pt), activeSection); const u = [...fields]; u.splice(idx, 0, f); setFields(u.map((x, i) => ({ ...x, Order: i + 1 }))); setEditingField(f.Id); }
-    else if (dragIdx !== null && dragIdx !== idx) { const u = [...fields]; const [m] = u.splice(dragIdx, 1); u.splice(idx, 0, m); setFields(u.map((x, i) => ({ ...x, Order: i + 1 }))); }
+    if (pt) { dispatch({ type: 'INSERT_FIELD', index: idx, fieldType: parseInt(pt) }); }
+    else if (dragIdx !== null && dragIdx !== idx) { dispatch({ type: 'REORDER_FIELDS', fromIndex: dragIdx, toIndex: idx }); }
     setDragIdx(null);
   };
 
   const handleShare = async () => {
     const json = buildJson();
     const u = generateShareUrl(json);
-    setShareUrl(u);
-    setShowQR(true);
-    setQrLoading(true);
-    setQrPayload(null);
+    setShare({ url: u, qrPayload: null, qrMode: null, showQR: true, qrLoading: true });
     let clipUrl = u;
     try {
       const result = await uploadToCloud(json);
       clipUrl = result.fetchUrl;
-      setQrPayload(result.fetchUrl);
-      setQrMode("blob");
+      setShare(s => ({ ...s, qrPayload: result.fetchUrl, qrMode: "blob", qrLoading: false }));
       showToastMsg(`${result.service} ile yüklendi!`);
     } catch (err) {
       console.warn("Cloud upload failed:", err.message);
       const compressed = generateQrPayload(json);
       clipUrl = compressed;
-      setQrPayload(compressed);
-      setQrMode("compressed");
+      setShare(s => ({ ...s, qrPayload: compressed, qrMode: "compressed", qrLoading: false }));
       showToastMsg("Yerel QR oluşturuldu");
     }
-    setQrLoading(false);
     if (clipUrl) navigator.clipboard?.writeText(clipUrl).catch(() => {});
   };
-  const loadTemplate = (t) => { setSections(t.json.Sections || [{ Id: "main", Title: "FORM", Order: 1 }]); setFields(t.json.FormFields); setEditingField(null); setActiveSection(t.json.Sections?.[0]?.Id || "main"); showToastMsg(`"${t.name}" yüklendi!`); };
+
+  const loadTemplate = (t) => { dispatch({ type: 'LOAD_FORM', sections: t.json.Sections || [DEFAULT_SECTION], fields: t.json.FormFields }); showToastMsg(`"${t.name}" yüklendi!`); };
   const saveAsTemplate = () => { if (!newTemplateName.trim()) return; const u = [...customTemplates, { name: newTemplateName.trim(), desc: `${fields.length} alan, ${sections.length} bölüm`, json: buildJson() }]; setCustomTemplates(u); saveCustomTemplates(u); setNewTemplateName(""); setShowSaveTemplate(false); showToastMsg("Şablon kaydedildi!"); };
   const deleteTemplate = (i) => { const u = customTemplates.filter((_, j) => j !== i); setCustomTemplates(u); saveCustomTemplates(u); showToastMsg("Silindi!"); };
-  const getDeps = () => fields.filter((f) => f.DependsOn?.FieldId).map((f) => ({ from: f.DependsOn.FieldId, to: f.Id, fromLabel: fields.find((x) => x.Id === f.DependsOn.FieldId)?.Label || f.DependsOn.FieldId, toLabel: f.Label || f.Id, rules: Object.keys(f.DependsOn.Rules || {}), defaultVisible: f.DependsOn.DefaultVisible }));
+
+  const handleCreatePR = async () => {
+    if (!newTemplateName.trim()) return;
+    if (!ghToken) { setShowTokenInput(true); return; }
+    setPrLoading(true);
+    try {
+      const desc = `${fields.length} alan, ${sections.length} bölüm`;
+      const prUrl = await createTemplatePR(ghToken, newTemplateName.trim(), desc, buildJson());
+      setNewTemplateName("");
+      setShowSaveTemplate(false);
+      showToastMsg("PR açıldı!");
+      window.open(prUrl, "_blank");
+    } catch (err) {
+      showToastMsg(`PR hatası: ${err.message}`);
+    }
+    setPrLoading(false);
+  };
+
+  const handleSaveToken = (token) => {
+    setGhToken(token);
+    setGitHubToken(token);
+    setShowTokenInput(false);
+    showToastMsg("Token kaydedildi!");
+  };
 
   const sectionFields = fields.filter((f) => f.SectionId === activeSection).sort((a, b) => (a.Order ?? 0) - (b.Order ?? 0));
   const chipStyle = (bg, fg) => ({ padding: "1px 6px", borderRadius: 4, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3, background: bg, color: fg, lineHeight: "16px" });
@@ -1304,7 +1527,7 @@ function DynamicFormBuilder() {
               <div style={{ display: "flex", alignItems: "center", padding: "0 12px", borderBottom: `1px solid ${C.border}`, background: C.surface, gap: 2, overflowX: "auto" }}>
                 {sections.map((s) => (
                   <div key={s.Id} style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    <button style={{ padding: "6px 14px", borderRadius: "6px 6px 0 0", fontSize: 11, fontWeight: 700, cursor: "pointer", border: "1px solid transparent", borderBottom: "none", background: activeSection === s.Id ? C.surface : "transparent", color: activeSection === s.Id ? C.accent : C.text2, fontFamily: "inherit", textTransform: "uppercase", letterSpacing: 0.5 }} onClick={() => setActiveSection(s.Id)}>
+                    <button style={{ padding: "6px 14px", borderRadius: "6px 6px 0 0", fontSize: 11, fontWeight: 700, cursor: "pointer", border: "1px solid transparent", borderBottom: "none", background: activeSection === s.Id ? C.surface : "transparent", color: activeSection === s.Id ? C.accent : C.text2, fontFamily: "inherit", textTransform: "uppercase", letterSpacing: 0.5 }} onClick={() => dispatch({ type: 'SET_ACTIVE_SECTION', id: s.Id })}>
                       {s.Title || s.Id} <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 4 }}>{fields.filter((f) => f.SectionId === s.Id).length}</span>
                     </button>
                     {sections.length > 1 && <button style={{ background: "none", border: "none", color: C.text2, fontSize: 10, cursor: "pointer", padding: "2px 4px" }} onClick={() => removeSection(s.Id)}>✕</button>}
@@ -1337,7 +1560,7 @@ function DynamicFormBuilder() {
                       onDragEnd={() => setDragIdx(null)}
                       onDrop={(e) => handleDrop(e, gIdx)}
                       style={{ background: isActive ? C.surface2 : C.surface, border: `1px solid ${isActive ? C.accent : C.border}`, borderRadius: 8, padding: "8px 10px", cursor: "pointer", transition: "all 0.12s", opacity: dragIdx === gIdx ? 0.4 : 1 }}
-                      onClick={() => setEditingField(isActive ? null : field.Id)}
+                      onClick={() => dispatch({ type: 'SET_EDITING', id: isActive ? null : field.Id })}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ color: C.text2, fontSize: 14, cursor: "grab" }}>⠿</span>
@@ -1364,7 +1587,7 @@ function DynamicFormBuilder() {
             {/* Editor panel */}
             <div style={{ flex: 1, overflowY: "auto", background: C.bg }}>
               {editingField ? (
-                <FieldEditor field={fields.find((f) => f.Id === editingField)} allFields={fields} sections={sections} onUpdate={updateField} onUpdateConfig={updateFieldConfig} onClose={() => setEditingField(null)} />
+                <FieldEditor field={fields.find((f) => f.Id === editingField)} allFields={fields} sections={sections} onUpdate={updateField} onUpdateConfig={updateFieldConfig} onClose={() => dispatch({ type: 'SET_EDITING', id: null })} />
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", textAlign: "center", padding: 48, opacity: 0.7 }}>
                   <div style={{ fontSize: 40 }}>👈</div>
@@ -1664,8 +1887,27 @@ function DynamicFormBuilder() {
                 <div style={{ display: "flex", gap: 8 }}>
                   <input style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, color: C.text, padding: "8px 12px", borderRadius: 6, fontSize: 13, outline: "none", fontFamily: "inherit" }} value={newTemplateName} onChange={(e) => setNewTemplateName(e.target.value)} placeholder="Şablon adı..." onKeyDown={(e) => e.key === "Enter" && saveAsTemplate()} />
                   <button style={{ background: C.accent, color: C.bg, border: "none", padding: "8px 18px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }} onClick={saveAsTemplate}>Kaydet</button>
+                  {getGitHubRepo() && (
+                    <button disabled={prLoading || !newTemplateName.trim()} style={{ background: prLoading ? C.surface2 : C.accent2, color: "#fff", border: "none", padding: "8px 18px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: prLoading ? "wait" : "pointer", fontFamily: "inherit", opacity: !newTemplateName.trim() ? 0.5 : 1 }} onClick={handleCreatePR}>
+                      {prLoading ? "⏳ PR..." : "🔀 PR Aç"}
+                    </button>
+                  )}
                 </div>
-                <div style={{ fontSize: 10, color: C.text2, marginTop: 6 }}>{fields.length} alan, {sections.length} bölüm kaydedilecek</div>
+                <div style={{ fontSize: 10, color: C.text2, marginTop: 6 }}>
+                  {fields.length} alan, {sections.length} bölüm kaydedilecek
+                  {getGitHubRepo() && <span> · PR: {getGitHubRepo().owner}/{getGitHubRepo().repo}</span>}
+                </div>
+                {showTokenInput && (
+                  <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+                    <input style={{ flex: 1, background: C.bg, border: `1px solid ${C.warning}60`, color: C.text, padding: "8px 12px", borderRadius: 6, fontSize: 11, outline: "none", fontFamily: "inherit" }} type="password" placeholder="GitHub Personal Access Token" defaultValue={ghToken} onKeyDown={(e) => e.key === "Enter" && handleSaveToken(e.target.value)} />
+                    <button style={{ background: C.warning, color: C.bg, border: "none", padding: "8px 14px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }} onClick={(e) => handleSaveToken(e.target.previousSibling.value)}>Kaydet</button>
+                  </div>
+                )}
+                {showTokenInput && (
+                  <div style={{ fontSize: 9, color: C.text2, marginTop: 4 }}>
+                    Fine-grained PAT: <code style={{ color: C.accent, fontSize: 9 }}>contents:write</code> + <code style={{ color: C.accent, fontSize: 9 }}>pull_requests:write</code> yeterli
+                  </div>
+                )}
               </div>
             )}
             {customTemplates.length > 0 && (
@@ -1703,45 +1945,45 @@ function DynamicFormBuilder() {
       </div>
 
       {/* QR Modal */}
-      {showQR && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(6px)" }} onClick={() => setShowQR(false)}>
+      {share.showQR && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(6px)" }} onClick={() => setShare(s => ({ ...s, showQR: false }))}>
           <div style={{ background: C.surface, borderRadius: 16, padding: 28, textAlign: "center", maxWidth: 500, width: "95%", border: `1px solid ${C.border}` }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ margin: "0 0 8px", fontSize: 18, color: C.accent }}>📱 QR ile Paylaş</h3>
             <p style={{ margin: "0 0 12px", fontSize: 12, color: C.text2 }}>Developer Options içerisinden QR okutarak test edin</p>
 
-            {qrLoading && (
+            {share.qrLoading && (
               <div style={{ padding: "40px 0", color: C.text2, fontSize: 13 }}>
                 <div style={{ fontSize: 24, marginBottom: 8, animation: "pulse 1s infinite" }}>⏳</div>
                 Form yükleniyor...
               </div>
             )}
 
-            {!qrLoading && qrPayload && (
+            {!share.qrLoading && share.qrPayload && (
               <>
                 <div style={{ marginBottom: 12, display: "flex", justifyContent: "center", gap: 6 }}>
-                  {qrMode === "blob" ? (
+                  {share.qrMode === "blob" ? (
                     <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 12, background: C.success + "20", color: C.success, fontWeight: 600 }}>
-                      ☁️ Bulut · {qrPayload.length} karakter · Anında okunur
+                      ☁️ Bulut · {share.qrPayload.length} karakter · Anında okunur
                     </span>
                   ) : (
                     <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 12, background: C.warning + "20", color: C.warning, fontWeight: 600 }}>
-                      📦 Offline · {qrPayload.length} karakter {qrPayload.length > 2500 && " · ⚠ Büyük"}
+                      📦 Offline · {share.qrPayload.length} karakter {share.qrPayload.length > 2500 && " · ⚠ Büyük"}
                     </span>
                   )}
                 </div>
                 <div style={{ background: "#fff", borderRadius: 12, padding: 12, display: "inline-block", marginBottom: 16 }}>
-                  <img src={generateQR(qrPayload, 500)} alt="QR" style={{ width: 380, height: 380, display: "block" }} />
+                  <img src={generateQR(share.qrPayload, 500)} alt="QR" style={{ width: 380, height: 380, display: "block" }} />
                 </div>
                 <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
-                  <button style={{ flex: 1, background: C.accent + "15", border: `1px solid ${C.accent}30`, color: C.accent, padding: "8px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} onClick={() => { navigator.clipboard?.writeText(qrPayload); showToastMsg("QR payload kopyalandı!"); }}>📋 QR Payload</button>
-                  <button style={{ flex: 1, background: C.surface2, border: `1px solid ${C.border}`, color: C.text, padding: "8px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }} onClick={() => { const link = qrMode === "blob" ? qrPayload : shareUrl; navigator.clipboard?.writeText(link); showToastMsg("Link kopyalandı!"); }}>🔗 Link Kopyala</button>
+                  <button style={{ flex: 1, background: C.accent + "15", border: `1px solid ${C.accent}30`, color: C.accent, padding: "8px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} onClick={() => { navigator.clipboard?.writeText(share.qrPayload); showToastMsg("QR payload kopyalandı!"); }}>📋 QR Payload</button>
+                  <button style={{ flex: 1, background: C.surface2, border: `1px solid ${C.border}`, color: C.text, padding: "8px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }} onClick={() => { const link = share.qrMode === "blob" ? share.qrPayload : share.url; navigator.clipboard?.writeText(link); showToastMsg("Link kopyalandı!"); }}>🔗 Link Kopyala</button>
                 </div>
                 <div style={{ marginBottom: 12 }}>
-                  <input style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: C.text2, padding: "6px 10px", borderRadius: 6, fontSize: 9, outline: "none", fontFamily: "inherit" }} value={qrPayload} readOnly onClick={(e) => e.target.select()} />
+                  <input style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: C.text2, padding: "6px 10px", borderRadius: 6, fontSize: 9, outline: "none", fontFamily: "inherit" }} value={share.qrPayload} readOnly onClick={(e) => e.target.select()} />
                 </div>
               </>
             )}
-            <button style={{ background: C.surface2, border: `1px solid ${C.border}`, color: C.text, padding: "7px 20px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }} onClick={() => setShowQR(false)}>Kapat</button>
+            <button style={{ background: C.surface2, border: `1px solid ${C.border}`, color: C.text, padding: "7px 20px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }} onClick={() => setShare(s => ({ ...s, showQR: false }))}>Kapat</button>
           </div>
         </div>
       )}
@@ -1751,7 +1993,6 @@ function DynamicFormBuilder() {
     </div>
   );
 }
-
 
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(DynamicFormBuilder));
 </script>
