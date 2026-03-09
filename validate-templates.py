@@ -112,7 +112,7 @@ def validate_format(data):
                 if "FieldType" not in field:
                     errors.append("%s: FieldType zorunlu" % fp)
                 elif field["FieldType"] not in valid_types:
-                    errors.append("%s: FieldType %s gecersiz (1-7)" % (fp, field["FieldType"]))
+                    errors.append("%s: FieldType %s gecersiz (1-8)" % (fp, field["FieldType"]))
 
                 if "SectionId" not in field:
                     errors.append("%s: SectionId zorunlu" % fp)

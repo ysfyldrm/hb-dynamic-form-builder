@@ -1393,12 +1393,14 @@ function DynamicFormBuilder() {
   const [jsonError, setJsonError] = useState(null);
   const jsonDb = useRef(null);
   const fileRef = useRef(null);
+  const toastTimer = useRef(null);
 
   useEffect(() => { const s = parseShareUrl(); if (s) { dispatch({ type: 'LOAD_FORM', sections: s.Sections, fields: s.FormFields }); showToastMsg("Paylaşılan form yüklendi!"); } }, []);
   useEffect(() => { if (activeTab === "json") { setJsonText(JSON.stringify({ Sections: sections, FormFields: fields }, null, 2)); setJsonError(null); } }, [activeTab]);
+  useEffect(() => () => { if (jsonDb.current) clearTimeout(jsonDb.current); if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
 
-  const showToastMsg = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
-  const buildJson = () => ({ Sections: sections, FormFields: fields });
+  const showToastMsg = (msg) => { if (toastTimer.current) clearTimeout(toastTimer.current); setToast(msg); toastTimer.current = setTimeout(() => setToast(null), 2500); };
+  const buildJson = useCallback(() => ({ Sections: sections, FormFields: fields }), [sections, fields]);
 
   // JSON auto-sync
   const handleJsonEdit = (text) => {
@@ -1490,7 +1492,8 @@ function DynamicFormBuilder() {
     showToastMsg("Token kaydedildi!");
   };
 
-  const sectionFields = fields.filter((f) => f.SectionId === activeSection).sort((a, b) => (a.Order ?? 0) - (b.Order ?? 0));
+  const sectionFields = useMemo(() => fields.filter((f) => f.SectionId === activeSection).sort((a, b) => (a.Order ?? 0) - (b.Order ?? 0)), [fields, activeSection]);
+  const ghRepo = useMemo(() => getGitHubRepo(), []);
   const chipStyle = (bg, fg) => ({ padding: "1px 6px", borderRadius: 4, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3, background: bg, color: fg, lineHeight: "16px" });
   const tabs = [
     { id: "builder", label: "🔨 Oluşturucu", count: fields.length },
@@ -1898,7 +1901,7 @@ function DynamicFormBuilder() {
                 <div style={{ display: "flex", gap: 8 }}>
                   <input style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, color: C.text, padding: "8px 12px", borderRadius: 6, fontSize: 13, outline: "none", fontFamily: "inherit" }} value={newTemplateName} onChange={(e) => setNewTemplateName(e.target.value)} placeholder="Şablon adı..." onKeyDown={(e) => e.key === "Enter" && saveAsTemplate()} />
                   <button style={{ background: C.accent, color: C.bg, border: "none", padding: "8px 18px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }} onClick={saveAsTemplate}>Kaydet</button>
-                  {getGitHubRepo() && (
+                  {ghRepo && (
                     <button disabled={prLoading || !newTemplateName.trim()} style={{ background: prLoading ? C.surface2 : C.accent2, color: "#fff", border: "none", padding: "8px 18px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: prLoading ? "wait" : "pointer", fontFamily: "inherit", opacity: !newTemplateName.trim() ? 0.5 : 1 }} onClick={handleCreatePR}>
                       {prLoading ? "⏳ PR..." : "🔀 PR Aç"}
                     </button>
@@ -1906,8 +1909,8 @@ function DynamicFormBuilder() {
                 </div>
                 <div style={{ fontSize: 10, color: C.text2, marginTop: 6 }}>
                   {fields.length} alan, {sections.length} bölüm kaydedilecek
-                  {getGitHubRepo() && <span> · PR: {getGitHubRepo().owner}/{getGitHubRepo().repo}</span>}
-                  {getGitHubRepo() && ghToken && !showTokenInput && (
+                  {ghRepo && <span> · PR: {ghRepo.owner}/{ghRepo.repo}</span>}
+                  {ghRepo && ghToken && !showTokenInput && (
                     <span style={{ color: C.accent2, cursor: "pointer", marginLeft: 4 }} onClick={() => setShowTokenInput(true)}>· 🔑 Token değiştir</span>
                   )}
                 </div>
