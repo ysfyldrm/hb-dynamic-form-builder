@@ -1077,8 +1077,9 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
             </div>
             <div style={{ flex: 1 }}>
               <Label text="Section" />
-              <select style={inp} value={field.SectionId || ""} onChange={(e) => onUpdate(field.Id, { SectionId: e.target.value })}>
-                {sections.map((s) => <option key={s.Id} value={s.Id}>{s.Title || s.Id}</option>)}
+              <select style={inp} value={field.SectionId || NO_SECTION_ID} onChange={(e) => onUpdate(field.Id, { SectionId: e.target.value })}>
+                <option value={NO_SECTION_ID}>— Yok (Section'sız) —</option>
+                {sections.filter(s => s.Id !== NO_SECTION_ID).map((s) => <option key={s.Id} value={s.Id}>{s.Title || s.Id}</option>)}
               </select>
             </div>
           </div>
@@ -1340,6 +1341,8 @@ function FieldEditor({ field, allFields, sections, onUpdate, onUpdateConfig, onC
 // FORM STATE REDUCER
 // ═══════════════════════════════════════════════════════════════
 const DEFAULT_SECTION = { Id: "main", Title: "FORM", Order: 1 };
+const NO_SECTION_ID = "__nosection__";
+const NO_SECTION = { Id: NO_SECTION_ID, Title: "Genel (Section'sız)", Order: 0 };
 
 const initialFormState = {
   sections: [DEFAULT_SECTION],
@@ -1351,13 +1354,20 @@ const initialFormState = {
 function formReducer(state, action) {
   switch (action.type) {
     case 'LOAD_FORM': {
-      const { sections, fields } = action;
+      const { sections: rawSections, fields: rawFields } = action;
+      const loadedFields = (rawFields || state.fields).sort((a, b) => (a.Order ?? 0) - (b.Order ?? 0));
+      const hasOrphans = loadedFields.some(f => !f.SectionId);
+      const loadedSections = rawSections || state.sections;
+      const finalSections = hasOrphans && !loadedSections.some(s => s.Id === NO_SECTION_ID)
+        ? [NO_SECTION, ...loadedSections]
+        : loadedSections;
+      const finalFields = loadedFields.map(f => f.SectionId ? f : { ...f, SectionId: NO_SECTION_ID });
       return {
         ...state,
-        sections: sections || state.sections,
-        fields: (fields || state.fields).sort((a, b) => (a.Order ?? 0) - (b.Order ?? 0)),
+        sections: finalSections,
+        fields: finalFields,
         editingField: null,
-        activeSection: sections?.[0]?.Id || state.activeSection,
+        activeSection: finalSections[0]?.Id || state.activeSection,
       };
     }
     case 'SET_SECTIONS':
@@ -1460,10 +1470,14 @@ function DynamicFormBuilder() {
   const fileRef = useRef(null);
 
   useEffect(() => { const s = parseShareUrl(); if (s) { dispatch({ type: 'LOAD_FORM', sections: s.Sections, fields: s.FormFields }); showToastMsg("Paylaşılan form yüklendi!"); } }, []);
-  useEffect(() => { if (activeTab === "json") { setJsonText(JSON.stringify({ Sections: sections, FormFields: fields }, null, 2)); setJsonError(null); } }, [activeTab]);
+  useEffect(() => { if (activeTab === "json") { setJsonText(JSON.stringify(buildJson(), null, 2)); setJsonError(null); } }, [activeTab]);
 
   const showToastMsg = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
-  const buildJson = () => ({ Sections: sections, FormFields: fields });
+  const buildJson = () => {
+    const exportSections = sections.filter(s => s.Id !== NO_SECTION_ID);
+    const exportFields = fields.map(f => f.SectionId === NO_SECTION_ID ? (() => { const { SectionId, ...rest } = f; return rest; })() : f);
+    return { Sections: exportSections, FormFields: exportFields };
+  };
 
   // JSON auto-sync
   const handleJsonEdit = (text) => {
@@ -1606,15 +1620,17 @@ function DynamicFormBuilder() {
                     <button style={{ padding: "6px 14px", borderRadius: "6px 6px 0 0", fontSize: 11, fontWeight: 700, cursor: "pointer", border: "1px solid transparent", borderBottom: "none", background: activeSection === s.Id ? C.surface : "transparent", color: activeSection === s.Id ? C.accent : C.text2, fontFamily: "inherit", textTransform: "uppercase", letterSpacing: 0.5 }} onClick={() => dispatch({ type: 'SET_ACTIVE_SECTION', id: s.Id })}>
                       {s.Title || s.Id} <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 4 }}>{fields.filter((f) => f.SectionId === s.Id).length}</span>
                     </button>
-                    {sections.length > 1 && <button style={{ background: "none", border: "none", color: C.text2, fontSize: 10, cursor: "pointer", padding: "2px 4px" }} onClick={() => removeSection(s.Id)}>✕</button>}
+                    {sections.length > 1 && s.Id !== NO_SECTION_ID && <button style={{ background: "none", border: "none", color: C.text2, fontSize: 10, cursor: "pointer", padding: "2px 4px" }} onClick={() => removeSection(s.Id)}>✕</button>}
                   </div>
                 ))}
                 <button style={{ background: "none", border: `1px dashed ${C.accent}50`, color: C.accent, padding: "4px 8px", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit", marginLeft: 4 }} onClick={addSection}>+</button>
               </div>
               {/* Section title */}
+              {activeSection !== NO_SECTION_ID && (
               <div style={{ padding: "8px 16px", borderBottom: `1px solid ${C.border}`, background: C.surface }}>
                 <input style={{ background: C.surface2, border: `1px solid ${C.border}`, color: C.accent, padding: "6px 10px", borderRadius: 6, fontSize: 13, fontWeight: 700, width: "100%", outline: "none", fontFamily: "inherit" }} value={sections.find((s) => s.Id === activeSection)?.Title || ""} onChange={(e) => updateSection(activeSection, { Title: e.target.value })} placeholder="Bölüm başlığı" />
               </div>
+              )}
               {/* Field list */}
               <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", display: "flex", flexDirection: "column", gap: 4 }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const pt = e.dataTransfer.getData("palette-type"); if (pt) addField(parseInt(pt)); }}>
                 {sectionFields.length === 0 && (
@@ -1693,11 +1709,11 @@ function DynamicFormBuilder() {
           const fi = fieldTypeInfo;
           const getField = (id) => fields.find(x => x.Id === id);
 
-          // Group fields by section
+          // Group fields by section (including nosection virtual group)
           const sectionGroups = sections.map(sec => ({
             ...sec,
             fields: fields.filter(f => f.SectionId === sec.Id).sort((a, b) => (a.Order ?? 0) - (b.Order ?? 0)),
-          }));
+          })).filter(sg => sg.fields.length > 0);
 
           // Find all parent fields that have children depending on them
           const parentMap = {};
