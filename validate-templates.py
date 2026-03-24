@@ -43,7 +43,7 @@ def validate_format(data):
         return [], ["templates.json bos, ama gecerli"]
 
     template_names = []
-    valid_types = [1, 2, 3, 4, 5, 6, 7, 8]
+    valid_types = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
     for i, tmpl in enumerate(data):
         prefix = "Template[%d]" % i
@@ -112,7 +112,7 @@ def validate_format(data):
                 if "FieldType" not in field:
                     errors.append("%s: FieldType zorunlu" % fp)
                 elif field["FieldType"] not in valid_types:
-                    errors.append("%s: FieldType %s gecersiz (1-7)" % (fp, field["FieldType"]))
+                    errors.append("%s: FieldType %s gecersiz (1-10)" % (fp, field["FieldType"]))
 
                 if "SectionId" not in field:
                     errors.append("%s: SectionId zorunlu" % fp)
