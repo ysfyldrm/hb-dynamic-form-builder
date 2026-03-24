@@ -286,7 +286,6 @@
           "Order": 1,
           "FieldType": 9,
           "Label": "Anlık bildirimlere izin ver",
-          "SectionId": "bildirim_tercihleri",
           "Config": {
             "Visible": true
           }
