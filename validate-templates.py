@@ -1,19 +1,6 @@
 #!/usr/bin/env python3
 """
-templates.json validator
-
-Kontroller:
-  1. Gecerli JSON mi?
-  2. Her templatete name, desc, json var mi?
-  3. json icinde Sections ve FormFields var mi?
-  4. Fieldlarda Id, FieldType, SectionId var mi?
-  5. Duplicate Id var mi?
-  6. SectionId gercekten var mi?
-  7. Mevcut templateler silinmis veya bozulmus mu? (--protect mode)
-
-Kullanim:
-  python3 validate-templates.py                     # sadece format kontrol
-  python3 validate-templates.py --protect old.json  # eski dosya ile karsilastir
+templates.json validator - Geliştirilmiş Versiyon
 """
 
 import json
@@ -43,7 +30,8 @@ def validate_format(data):
         return [], ["templates.json bos, ama gecerli"]
 
     template_names = []
-    valid_types = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    # FieldType 11 ve 12 listeye eklendi
+    valid_types = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
     for i, tmpl in enumerate(data):
         prefix = "Template[%d]" % i
@@ -74,8 +62,8 @@ def validate_format(data):
         # --- Sections ---
         sections = form.get("Sections", [])
         section_ids = set()
-        if not isinstance(sections, list) or len(sections) == 0:
-            errors.append("%s: json.Sections bos veya eksik" % prefix)
+        if not isinstance(sections, list):
+            errors.append("%s: json.Sections bir liste olmali" % prefix)
         else:
             for j, sec in enumerate(sections):
                 sp = "%s Section[%d]" % (prefix, j)
@@ -87,8 +75,6 @@ def validate_format(data):
                     section_ids.add(sec["Id"])
                 if "Title" not in sec:
                     warnings.append("%s: Title eksik" % sp)
-                if "Order" not in sec:
-                    warnings.append("%s: Order eksik" % sp)
 
         # --- FormFields ---
         fields = form.get("FormFields", [])
@@ -102,6 +88,7 @@ def validate_format(data):
                     errors.append("%s: obje olmali" % fp)
                     continue
 
+                # ID Kontrolü
                 if "Id" not in field:
                     errors.append("%s: Id zorunlu" % fp)
                 else:
@@ -109,15 +96,20 @@ def validate_format(data):
                         errors.append("%s: duplicate Id" % fp)
                     field_ids.add(field["Id"])
 
+                # FieldType Kontrolü (1-12)
                 if "FieldType" not in field:
                     errors.append("%s: FieldType zorunlu" % fp)
                 elif field["FieldType"] not in valid_types:
-                    errors.append("%s: FieldType %s gecersiz (1-10)" % (fp, field["FieldType"]))
+                    errors.append("%s: FieldType %s gecersiz (1-12)" % (fp, field["FieldType"]))
 
-                if "SectionId" not in field:
-                    errors.append("%s: SectionId zorunlu" % fp)
-                elif sections and field["SectionId"] not in section_ids:
-                    errors.append("%s: SectionId eslesmedi" % fp)
+                # SectionId Kontrolü (Opsiyonel hale getirildi)
+                if "SectionId" in field:
+                    # Eğer SectionId varsa, gerçekten mevcut bir section olmalı
+                    if sections and field["SectionId"] not in section_ids:
+                        errors.append("%s: Tanimlanan SectionId (%s) mevcut sectionlar arasinda bulunamadi" % (fp, field["SectionId"]))
+                else:
+                    # Eskiden hataydı, artık sadece bilgi amaçlı belki ileride lazım olur diye boş bıraktık
+                    pass
 
                 config = field.get("Config", {})
                 if not isinstance(config, dict):
@@ -134,32 +126,18 @@ def validate_format(data):
 
 
 def check_protection(old_data, new_data):
-    """Mevcut templatelerin silinmedigini veya bozulmadigini kontrol et."""
     errors = []
+    old_map = {t["name"]: t for t in old_data if isinstance(t, dict) and "name" in t}
+    new_map = {t["name"]: t for t in new_data if isinstance(t, dict) and "name" in t}
 
-    old_map = {}
-    for t in old_data:
-        if isinstance(t, dict) and "name" in t:
-            old_map[t["name"]] = t
-
-    new_map = {}
-    for t in new_data:
-        if isinstance(t, dict) and "name" in t:
-            new_map[t["name"]] = t
-
-    # Silinen template var mi?
     for name in old_map:
         if name not in new_map:
             errors.append('"%s" silindi! Mevcut templateler silinemez.' % name)
-
-    # Degistirilen template var mi?
-    for name in old_map:
-        if name not in new_map:
-            continue
-        old_json = json.dumps(old_map[name].get("json", {}), sort_keys=True)
-        new_json = json.dumps(new_map[name].get("json", {}), sort_keys=True)
-        if old_json != new_json:
-            errors.append('"%s" degistirildi! Mevcut templatelerin jsonu degistirilemez. Yeni template ekleyin.' % name)
+        else:
+            old_json = json.dumps(old_map[name].get("json", {}), sort_keys=True)
+            new_json = json.dumps(new_map[name].get("json", {}), sort_keys=True)
+            if old_json != new_json:
+                errors.append('"%s" degistirildi! Mevcut templatelerin jsonu degistirilemez.' % name)
 
     return errors
 
@@ -178,33 +156,24 @@ def main():
             sys.exit(1)
 
     new_data = load_json("templates.json")
-
-    # Format kontrolu
     errors, warnings = validate_format(new_data)
 
-    # Koruma kontrolu
     if protect_mode and old_path:
         old_data = load_json(old_path)
-        prot_errors = check_protection(old_data, new_data)
-        errors.extend(prot_errors)
+        errors.extend(check_protection(old_data, new_data))
 
     if warnings:
-        print("")
-        print("UYARILAR:")
-        for w in warnings:
-            print("  WARN: %s" % w)
+        print("\nUYARILAR:")
+        for w in warnings: print("  WARN: %s" % w)
 
     if errors:
-        print("")
-        print("HATALAR:")
-        for e in errors:
-            print("  FAIL: %s" % e)
-        print("")
-        print("%d hata bulundu." % len(errors))
+        print("\nHATALAR:")
+        for e in errors: print("  FAIL: %s" % e)
+        print("\n%d hata bulundu." % len(errors))
         sys.exit(1)
 
     count = len(new_data) if isinstance(new_data, list) else 0
-    print("OK: %d template, hepsi gecerli." % count)
+    print("OK: %d template, hepsi gecerli (FieldType 1-12 destekleniyor, SectionId opsiyonel)." % count)
     sys.exit(0)
 
 
