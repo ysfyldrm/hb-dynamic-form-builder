@@ -533,11 +533,11 @@
               "Trigger": "onComplete",
               "MethodId": 7662,
               "RequestParams": [
-                "$value"
+                "baskasi_tckn"
               ],
               "OnSuccess": {
                 "baskasi_ad_soyad": {
-                  "ValueKey": "maskedName",
+                  "ValueKey": "baskasi_tckn",
                   "Visible": true,
                   "Enabled": false
                 }
