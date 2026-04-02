@@ -303,7 +303,9 @@
             "FieldId": "switch_notifications",
             "DefaultVisible": false,
             "Rules": {
-              "true": { "Visible": true }
+              "true": {
+                "Visible": true
+              }
             }
           }
         },
@@ -320,7 +322,9 @@
             "FieldId": "switch_incoming",
             "DefaultVisible": false,
             "Rules": {
-              "true": { "Visible": true }
+              "true": {
+                "Visible": true
+              }
             }
           }
         },
@@ -337,7 +341,9 @@
             "FieldId": "switch_incoming",
             "DefaultVisible": false,
             "Rules": {
-              "true": { "Visible": true }
+              "true": {
+                "Visible": true
+              }
             }
           }
         },
@@ -354,7 +360,9 @@
             "FieldId": "switch_incoming",
             "DefaultVisible": false,
             "Rules": {
-              "true": { "Visible": true }
+              "true": {
+                "Visible": true
+              }
             }
           }
         },
@@ -371,7 +379,9 @@
             "FieldId": "switch_notifications",
             "DefaultVisible": false,
             "Rules": {
-              "true": { "Visible": true }
+              "true": {
+                "Visible": true
+              }
             }
           }
         },
@@ -388,7 +398,9 @@
             "FieldId": "switch_payments",
             "DefaultVisible": false,
             "Rules": {
-              "true": { "Visible": true }
+              "true": {
+                "Visible": true
+              }
             }
           }
         },
@@ -405,8 +417,240 @@
             "FieldId": "switch_payments",
             "DefaultVisible": false,
             "Rules": {
-              "true": { "Visible": true }
+              "true": {
+                "Visible": true
+              }
             }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "Diyanet Hac Kayıt",
+    "desc": "9 alan, 2 bölüm",
+    "json": {
+      "Sections": [
+        {
+          "Id": "kisi",
+          "Title": "Kişi Bilgileri",
+          "Order": 1
+        },
+        {
+          "Id": "odeme",
+          "Title": "Ödeme Bilgileri",
+          "Order": 2
+        }
+      ],
+      "FormFields": [
+        {
+          "Id": "kayit_tipi",
+          "FieldType": 11,
+          "Order": 1,
+          "Config": {
+            "Visible": true,
+            "Options": [
+              {
+                "Value": "kendi",
+                "Label": "Kendi Adıma"
+              },
+              {
+                "Value": "baskasi",
+                "Label": "Başkası Adına"
+              }
+            ],
+            "DefaultValue": "kendi"
+          }
+        },
+        {
+          "Id": "kendi_card",
+          "FieldType": 12,
+          "Order": 2,
+          "SectionId": "kisi",
+          "Config": {
+            "Visible": true
+          },
+          "DependsOn": {
+            "FieldId": "kayit_tipi",
+            "DefaultVisible": false,
+            "Rules": {
+              "kendi": {
+                "Visible": true
+              }
+            }
+          }
+        },
+        {
+          "Id": "kendi_tckn",
+          "FieldType": 1,
+          "Order": 3,
+          "Label": "T.C. Kimlik Numarası",
+          "SectionId": "kisi",
+          "Config": {
+            "Visible": true,
+            "Enabled": false,
+            "DefaultValue": "7600000000000"
+          },
+          "DependsOn": {
+            "FieldId": "kendi_card",
+            "DefaultVisible": true
+          }
+        },
+        {
+          "Id": "kendi_ad_soyad",
+          "FieldType": 1,
+          "Order": 4,
+          "Label": "Ad Soyad",
+          "SectionId": "kisi",
+          "Config": {
+            "Visible": true,
+            "Enabled": false,
+            "DefaultValue": "Belde Değirmenci"
+          },
+          "DependsOn": {
+            "FieldId": "kendi_card",
+            "DefaultVisible": true
+          }
+        },
+        {
+          "Id": "baskasi_tckn",
+          "FieldType": 1,
+          "Order": 5,
+          "Label": "T.C. Kimlik Numarası",
+          "SectionId": "kisi",
+          "Config": {
+            "Visible": false,
+            "Required": true,
+            "MaxLength": 11,
+            "KeyboardType": 2,
+            "ValidationRules": [
+              {
+                "Type": 1,
+                "ErrorMessage": "Geçersiz T.C. Kimlik Numarası"
+              }
+            ],
+            "AsyncAction": {
+              "Trigger": "onComplete",
+              "MethodId": 7662,
+              "RequestParams": [
+                "$value"
+              ],
+              "OnSuccess": {
+                "baskasi_ad_soyad": {
+                  "ValueKey": "maskedName",
+                  "Visible": true,
+                  "Enabled": false
+                }
+              },
+              "OnError": {
+                "baskasi_ad_soyad": {
+                  "Visible": false
+                }
+              }
+            }
+          },
+          "DependsOn": {
+            "FieldId": "kayit_tipi",
+            "DefaultVisible": false,
+            "Rules": {
+              "baskasi": {
+                "Visible": true
+              }
+            }
+          }
+        },
+        {
+          "Id": "baskasi_ad_soyad",
+          "FieldType": 1,
+          "Order": 6,
+          "Label": "Ad Soyad",
+          "SectionId": "kisi",
+          "Config": {
+            "Visible": false,
+            "Enabled": false
+          },
+          "DependsOn": {
+            "FieldId": "kayit_tipi",
+            "DefaultVisible": false,
+            "Rules": {
+              "baskasi": {
+                "Visible": false
+              }
+            }
+          }
+        },
+        {
+          "Id": "baskasi_dogum_tarihi",
+          "FieldType": 5,
+          "Order": 7,
+          "Label": "Doğum Tarihi",
+          "SectionId": "kisi",
+          "Config": {
+            "Visible": false,
+            "Required": true,
+            "Placeholder": "GG.AA.YYYY",
+            "Mask": "##.##.####",
+            "KeyboardType": 2,
+            "TrailingAction": {
+              "Type": 4
+            }
+          },
+          "DependsOn": {
+            "FieldId": "kayit_tipi",
+            "DefaultVisible": false,
+            "Rules": {
+              "baskasi": {
+                "Visible": true
+              }
+            }
+          }
+        },
+        {
+          "Id": "telefon",
+          "FieldType": 1,
+          "Order": 8,
+          "Label": "Telefon Numarası",
+          "SectionId": "kisi",
+          "Config": {
+            "Visible": true,
+            "Required": true,
+            "Mask": "0 (###) ### ## ##",
+            "KeyboardType": 3,
+            "TrailingAction": {
+              "Type": 3
+            },
+            "Placeholder": "Rehberden Seç",
+            "ValidationRules": [
+              {
+                "Type": 5,
+                "ErrorMessage": "Geçersiz telefon numarası"
+              }
+            ]
+          }
+        },
+        {
+          "Id": "kurum_tipi",
+          "FieldType": 2,
+          "Order": 9,
+          "Label": "Kurum Tipi",
+          "SectionId": "odeme",
+          "Config": {
+            "Visible": true,
+            "Required": true,
+            "Options": [
+              {
+                "Value": "diyanet",
+                "Label": "Diyanet"
+              },
+              {
+                "Value": "ozel",
+                "Label": "Özel Tur"
+              },
+              {
+                "Value": "vakif",
+                "Label": "Vakıf"
+              }
+            ]
           }
         }
       ]
